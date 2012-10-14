@@ -9,6 +9,14 @@
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/libfreenect</url>
 
+  <rosdep name="git" />
+  <rosdep name="cmake" />
+  <rosdep name="glut" />
+  <rosdep name="pkg-config" />
+  <rosdep name="libxmu-dev" />
+  <rosdep name="libxi-dev" />
+  <rosdep name="libusb-1.0-dev" />
+
 </package>
 
 
