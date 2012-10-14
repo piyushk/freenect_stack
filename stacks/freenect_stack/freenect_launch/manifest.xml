@@ -1,0 +1,16 @@
+<package>
+  <description brief="freenect_launch">
+
+     freenect_launch
+
+  </description>
+  <author>Piyush Khandelwal</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/freenect_launch</url>
+  <depend package="openni_launch"/>
+  <depend package="freenect_camera"/>
+
+</package>
+
+

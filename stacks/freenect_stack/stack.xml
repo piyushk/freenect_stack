@@ -1,0 +1,9 @@
+<stack>
+  <description brief="freenect_stack">freenect_stack</description>
+  <author>Maintained by Piyush Khandelwal</author>
+  <license>BSD</license>  
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/freenect_stack</url>
+  <depend stack="ros" />
+
+</stack>
