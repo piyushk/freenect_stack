@@ -1,3 +1,7 @@
+/* based on code from:
+http://jamesreuss.wordpress.com/2011/12/23/working-out-how-to-use-libfreenect-in-objective-c/
+*/
+
 #include <ros/ros.h>
 #include <freenect/libfreenect.h>
 #include <stdio.h>
