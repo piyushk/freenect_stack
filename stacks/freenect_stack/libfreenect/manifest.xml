@@ -17,6 +17,10 @@
   <rosdep name="libxi-dev" />
   <rosdep name="libusb-1.0-dev" />
 
+  <export>
+    <cpp cflags="-I${prefix}/include" lflags="-L${prefix}/lib -lfreenect -lfreenect_sync"/>
+  </export>
+
 </package>
 
 
