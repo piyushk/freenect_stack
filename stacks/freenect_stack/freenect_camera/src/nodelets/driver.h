@@ -50,7 +50,7 @@
 #include <openni_camera/OpenNIConfig.h>
 
 // Freenect
-#include <freenect_camera/freenect_device.h>
+#include <freenect/libfreenect.h>
 
 namespace freenect_camera
 {
@@ -67,7 +67,8 @@ namespace freenect_camera
       virtual void onInit ();
       void setupDevice ();
 
-      /// @todo Consolidate all the mode stuff, maybe even in different class/header
+      void mapConfigModeToImage(int config_mode, freenect_video_format& mode, freenect_resolution& res);
+      void mapConfigModeToDepth(int config_mode, freenect_depth_format& mode, freenect_resolution& res);
 
       // Callback methods
       void rgbCb(boost::shared_ptr<openni_wrapper::Image> image, void* cookie);
@@ -90,10 +91,10 @@ namespace freenect_camera
       void publishRgbImage(const openni_wrapper::Image& image, ros::Time time) const;
       void publishDepthImage(const openni_wrapper::DepthImage& depth, ros::Time time) const;
 
-      /** \brief the freenect device manager. more than 1 instance of this manager will throw*/
-      Freenect::Freenect freenect_;
-
-      /** 
+      /** \brief the freenect context. used to instantiate devices */
+      freenect_context driver_;
+      /** \brief the actual freenect device controlled by this nodelet*/
+      freenect_device device_;
 
       /** \brief reconfigure server*/
       boost::shared_ptr<ReconfigureServer> reconfigure_server_;

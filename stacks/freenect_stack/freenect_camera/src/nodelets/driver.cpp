@@ -170,68 +170,73 @@ void DriverNodelet::onInit ()
 
 void DriverNodelet::setupDevice ()
 {
-  // Initialize the openni device
-  OpenNIDriver& driver = OpenNIDriver::getInstance ();
+  // Initialize the driver
+  freenect_init(&driver_, NULL);
+  freenect_set_log_level(driver_, FREENECT_LOG_NOTICE);
+  freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
 
-  //do {
+  do {
 
-    // if (driver.getNumberDevices () == 0)
-    // {
-    //   NODELET_INFO ("No devices connected.... waiting for devices to be connected");
-    //   boost::this_thread::sleep(boost::posix_time::seconds(3));
-    //   continue;
-    // }
+    if (freenect_num_devices(driver_) == 0)
+    {
+      NODELET_INFO ("No devices connected.... waiting for devices to be connected");
+      boost::this_thread::sleep(boost::posix_time::seconds(3));
+      continue;
+    }
 
-    // NODELET_INFO ("Number devices connected: %d", driver.getNumberDevices ());
-    // for (unsigned deviceIdx = 0; deviceIdx < driver.getNumberDevices (); ++deviceIdx)
-    // {
-    //   NODELET_INFO("%u. device on bus %03u:%02u is a %s (%03x) from %s (%03x) with serial id \'%s\'",
-    //                deviceIdx + 1, driver.getBus(deviceIdx), driver.getAddress(deviceIdx),
-    //                driver.getProductName(deviceIdx), driver.getProductID(deviceIdx),
-    //                driver.getVendorName(deviceIdx), driver.getVendorID(deviceIdx),
-    //                driver.getSerialNumber(deviceIdx));
-    // }
+    NODELET_INFO ("Number devices connected: %d", freenect_num_devices(driver_));
+    freenect_device_attributes* attr_list;
+    freenect_device_attributes* item;
+    freenect_list_device_attributes(&driver_->usb, &attr_list);
 
-    try {
-      string device_id;
-      if (!getPrivateNodeHandle().getParam("device_id", device_id))
-      {
-        NODELET_WARN ("~device_id is not set! Using first device.");
-        device_ = driver.getDeviceByIndex (0);
-      }
-      // else if (device_id.find ('@') != string::npos)
-      // {
-      //   size_t pos = device_id.find ('@');
-      //   unsigned bus = atoi (device_id.substr (0, pos).c_str ());
-      //   unsigned address = atoi (device_id.substr (pos + 1, device_id.length () - pos - 1).c_str ());
-      //   NODELET_INFO ("Searching for device with bus@address = %d@%d", bus, address);
-      //   device_ = driver.getDeviceByAddress (bus, address);
-      // }
-      else if (device_id[0] == '#')
-      {
-        unsigned index = atoi (device_id.c_str () + 1);
-        NODELET_INFO ("Searching for device with index = %d", index);
-        device_ = driver.getDeviceByIndex (index - 1);
-      }
-      else
-      {
-        NODELET_INFO ("Searching for device with serial number = '%s'", device_id.c_str ());
-        device_ = driver.getDeviceBySerialNumber (device_id);
+    int serial_index = 0;
+    for (item = attrlist; item != NULL; item = item->next, ++serial_index)
+    {
+      NODELET_INFO("%u. device with with serial id \'%s\'",
+                   serial_index, item->camera_serial)
+    }
+
+    string device_id;
+    int index = 0;
+
+    if (!getPrivateNodeHandle().getParam("device_id", device_id))
+    {
+      NODELET_WARN("~device_id is not set! Using first device (index = 0).");
+      if (freenect_open_device(driver_, &device_, index) < 0) {
+        index = -1;
       }
     }
-    catch (const std::runtime_exception& exception)
+    else if (device_id.find ('@') != string::npos)
     {
-      NODELET_INFO ("No matching device found. Reason: %s", exception.what ());
+      NODELET_ERROR("device selected by bus@address unsupported");
+      index = -1;
+    }
+    else if (device_id[0] == '#')
+    {
+      index = atoi(device_id.c_str());
+      NODELET_INFO ("Searching for device with index = %d", index);
+      if (freenect_open_device(driver_, &device_, index) < 0) {
+        index = -1;
+      }
+    }
+    else
+    {
+      NODELET_INFO ("Searching for device with serial number = '%s'", device_id.c_str());
+      if (freenect_open_device_by_camera_serial(driver_, &device_, device_id.c_str()) < 0) {
+        index = -1;
+      }
+    }
+
+    if (index == -1) {
+      NODELET_FATAL ("Unable to capture specified device.");
       exit(-1);
     }
-  // } while (!device_);
 
-  NODELET_INFO ("Opened '%s' on bus %d:%d with serial number '%s'", device_->getProductName (),
-                device_->getBus (), device_->getAddress (), device_->getSerialNumber ());
+  } while (!device_);
 
-  device_->registerImageCallback(&DriverNodelet::rgbCb,   *this);
-  device_->registerDepthCallback(&DriverNodelet::depthCb, *this);
-  device_->registerIRCallback   (&DriverNodelet::irCb,    *this);
+  freenect_set_user(device_, this);
+  freenect_set_video_callback(device_, rgbCbWrapper);
+  freenect_set_depth_callback(device_, depthCbWrapper);
 }
 
 void DriverNodelet::rgbConnectCb()
@@ -586,8 +591,6 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getProjectorCameraInfo(ros::Time time)
 
 void DriverNodelet::configCb(Config &config, uint32_t level)
 {
-  depth_ir_offset_x_ = config.depth_ir_offset_x;
-  depth_ir_offset_y_ = config.depth_ir_offset_y;
   z_offset_mm_ = config.z_offset_mm;
 
   XnMapOutputMode old_depth_mode = device_->getDepthOutputMode ();
@@ -662,6 +665,18 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
 
   // now we can copy
   config_ = config;
+}
+
+void DriverNodelet::mapConfigMode2XnMode(int config_mode, freenect_video_format& mode, freenect_resolution& res) {
+  switch(config_mode) {
+    case OpenNI_SXGA_15Hz:
+      mode = 
+      res = 
+
+  }
+}
+
+void DriverNodelet::mapConfigMode2XnMode(int config_mode, freenect_depth_format& mode, freenect_resolution& res) {
 }
 
 void DriverNodelet::watchDog (const ros::TimerEvent& event)

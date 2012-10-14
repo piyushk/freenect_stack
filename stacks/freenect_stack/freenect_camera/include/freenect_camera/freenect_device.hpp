@@ -7,8 +7,9 @@ namespace freenect_camera {
 
     public:
       MyFreenectDevice(freenect_context *_ctx, int _index)
-        : Freenect::FreenectDevice(_ctx, _index), m_buffer_depth(freenect_find_video_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_VIDEO_RGB).bytes),m_buffer_video(freenect_find_video_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_VIDEO_RGB).bytes), m_new_rgb_frame(false), m_new_depth_frame(false)
-      {}
+        : Freenect::FreenectDevice(_ctx, _index), m_new_rgb_frame(false), m_new_depth_frame(false)
+      {
+      }
       //~MyFreenectDevice(){}
       // Do not call directly even in child
       void VideoCallback(void* _rgb, uint32_t timestamp) {
