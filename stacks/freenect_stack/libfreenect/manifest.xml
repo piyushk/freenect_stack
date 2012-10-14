@@ -4,8 +4,8 @@
      libfreenect
 
   </description>
-  <author>Piyush Khandelwal</author>
-  <license>BSD</license>
+  <author>Hector Martin and others.</author>
+  <license>Apache 2.0</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/libfreenect</url>
 
