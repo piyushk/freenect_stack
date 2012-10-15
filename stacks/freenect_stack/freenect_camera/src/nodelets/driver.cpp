@@ -44,8 +44,9 @@
 using namespace std;
 
 DriverNodelet::~DriverNodelet () {
-  /// @todo Test watchdog timer for race conditions. May need to use a separate callback queue
-  /// controlled by the driver nodelet.
+  // @todo Test watchdog timer for race conditions. 
+  // May need to use a separate callback queue
+  // controlled by the driver nodelet.
 }
 
 void DriverNodelet::onInit ()
@@ -57,19 +58,23 @@ void DriverNodelet::onInit ()
   image_transport::ImageTransport it(nh);
   ros::NodeHandle rgb_nh(nh, "rgb");
   image_transport::ImageTransport rgb_it(rgb_nh);
+  ros::NodeHandle ir_nh(nh, "ir");
+  image_transport::ImageTransport ir_it(ir_nh);
   ros::NodeHandle depth_nh(nh, "depth");
   image_transport::ImageTransport depth_it(depth_nh);
   ros::NodeHandle depth_registered_nh(nh, "depth_registered");
   image_transport::ImageTransport depth_registered_it(depth_registered_nh);
+  ros::NodeHandle projector_nh(nh, "projector");
 
   rgb_frame_counter_ = depth_frame_counter_ = 0;
-  publish_rgb_ = = publish_depth_ = true;
+  publish_rgb_ = publish_depth_ = true;
 
-  // Initialize the sensor, but don't start any streams yet. That happens in the connection callbacks.
+  // Initialize the sensor, but don't start any streams yet. 
+  // The connection status callbacks start the streams as necessary.
   setupDevice();
 
   // Initialize dynamic reconfigure
-  reconfigure_server_.reset( new ReconfigureServer(param_nh) );
+  reconfigure_server_.reset(new ReconfigureServer(param_nh));
   reconfigure_server_->setCallback(boost::bind(&DriverNodelet::configCb, this, _1, _2));
 
   // Camera TF frames
@@ -78,15 +83,8 @@ void DriverNodelet::onInit ()
   NODELET_INFO("rgb_frame_id = '%s' ",   rgb_frame_id_.c_str());
   NODELET_INFO("depth_frame_id = '%s' ", depth_frame_id_.c_str());
 
-  // Pixel offset between depth and IR images.
-  // By default assume offset of (5,4) from 9x7 correlation window.
-  // NOTE: These are now (temporarily?) dynamically reconfigurable, to allow tweaking.
-  //param_nh.param("depth_ir_offset_x", depth_ir_offset_x_, 5.0);
-  //param_nh.param("depth_ir_offset_y", depth_ir_offset_y_, 4.0);
-
   // The camera names are set to [rgb|depth]_[serial#], e.g. depth_B00367707227042B.
   // camera_info_manager substitutes this for ${NAME} in the URL.
-  std::string serial_number = device_->getSerialNumber();
   std::string rgb_name, ir_name;
   if (serial_number.empty())
   {
@@ -95,8 +93,8 @@ void DriverNodelet::onInit ()
   }
   else
   {
-    rgb_name = "rgb_"   + serial_number;
-    ir_name  = "depth_" + serial_number;
+    rgb_name = "rgb_"   + device_serial_number_;
+    ir_name  = "depth_" + device_serial_number_;
   }
 
   std::string rgb_info_url, ir_info_url;
@@ -126,39 +124,24 @@ void DriverNodelet::onInit ()
     NODELET_WARN("Using default parameters for IR camera calibration.");
 
   // Advertise all published topics
-  {
-    // Prevent connection callbacks from executing until we've set all the publishers. Otherwise
-    // connectCb() can fire while we're advertising (say) "depth/image_raw", but before we actually
-    // assign to pub_depth_. Then pub_depth_.getNumSubscribers() returns 0, and we fail to start
-    // the depth generator.
-    boost::lock_guard<boost::mutex> lock(connect_mutex_);
-    
-    // Asus Xtion PRO does not have an RGB camera
-    if (device_->hasImageStream())
-    {
-      image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
-      ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
-      pub_rgb_ = rgb_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
-    }
 
-    if (device_->hasIRStream())
-    {
-      image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::irConnectCb, this);
-      ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::irConnectCb, this);
-      pub_ir_ = ir_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
-    }
+  // rgb
+  image_transport::SubscriberStatusCallback rgb_itssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
+  ros::SubscriberStatusCallback rgb_rssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
+  pub_rgb_ = rgb_it.advertiseCamera("image_raw", 1, rgb_itssc, rgb_itssc, rgb_rssc, rgb_rssc);
 
-    if (device_->hasDepthStream())
-    {
-      image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::depthConnectCb, this);
-      ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::depthConnectCb, this);
-      pub_depth_ = depth_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
-      pub_projector_info_ = projector_nh.advertise<sensor_msgs::CameraInfo>("camera_info", 1, rssc, rssc);
-      
-      if (device_->isDepthRegistrationSupported())
-        pub_depth_registered_ = depth_registered_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
-    }
-  }
+  // ir
+  image_transport::SubscriberStatusCallback ir_itssc = boost::bind(&DriverNodelet::irConnectCb, this);
+  ros::SubscriberStatusCallback ir_rssc = boost::bind(&DriverNodelet::irConnectCb, this);
+  pub_ir_ = ir_it.advertiseCamera("image_raw", 1, ir_itssc, ir_itssc, ir_rssc, ir_rssc);
+
+  // depth
+  image_transport::SubscriberStatusCallback depth_itssc = boost::bind(&DriverNodelet::depthConnectCb, this);
+  ros::SubscriberStatusCallback depth_rssc = boost::bind(&DriverNodelet::depthConnectCb, this);
+  pub_depth_ = depth_it.advertiseCamera("image_raw", 1, depth_itssc, depth_itssc, depth_rssc, depth_rssc);
+  pub_projector_info_ = projector_nh.advertise<sensor_msgs::CameraInfo>("camera_info", 1, depth_rssc, depth_rssc);
+  
+  pub_depth_registered_ = depth_registered_it.advertiseCamera("image_raw", 1, depth_itssc, depth_itssc, depth_rssc, depth_rssc);
 
   // Create watch dog timer callback
   if (param_nh.getParam("time_out", time_out_) && time_out_ > 0.0)
@@ -190,10 +173,12 @@ void DriverNodelet::setupDevice ()
     freenect_list_device_attributes(&driver_->usb, &attr_list);
 
     int serial_index = 0;
+    std::vector<std::string> serial_numbers;
     for (item = attrlist; item != NULL; item = item->next, ++serial_index)
     {
       NODELET_INFO("%u. device with with serial id \'%s\'",
                    serial_index, item->camera_serial)
+      serial_numbers.push_back(std::string(item->camera_serials));
     }
 
     string device_id;
@@ -204,6 +189,8 @@ void DriverNodelet::setupDevice ()
       NODELET_WARN("~device_id is not set! Using first device (index = 0).");
       if (freenect_open_device(driver_, &device_, index) < 0) {
         index = -1;
+      } else {
+        device_serial_number_ = serial_numbers[index];
       }
     }
     else if (device_id.find ('@') != string::npos)
@@ -217,6 +204,8 @@ void DriverNodelet::setupDevice ()
       NODELET_INFO ("Searching for device with index = %d", index);
       if (freenect_open_device(driver_, &device_, index) < 0) {
         index = -1;
+      } else {
+        device_serial_number_ = serial_numbers[index];
       }
     }
     else
@@ -225,6 +214,7 @@ void DriverNodelet::setupDevice ()
       if (freenect_open_device_by_camera_serial(driver_, &device_, device_id.c_str()) < 0) {
         index = -1;
       }
+      device_serial_number_ = device_id;
     }
 
     if (index == -1) {
@@ -241,7 +231,6 @@ void DriverNodelet::setupDevice ()
 
 void DriverNodelet::rgbConnectCb()
 {
-  boost::lock_guard<boost::mutex> lock(connect_mutex_);
   bool need_rgb = pub_rgb_.getNumSubscribers() > 0;
   
   if (need_rgb && !device_->isImageStreamRunning())
@@ -591,92 +580,102 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getProjectorCameraInfo(ros::Time time)
 
 void DriverNodelet::configCb(Config &config, uint32_t level)
 {
-  z_offset_mm_ = config.z_offset_mm;
 
-  XnMapOutputMode old_depth_mode = device_->getDepthOutputMode ();
-  
-  // We need this for the ASUS Xtion Pro
-  XnMapOutputMode old_image_mode = old_depth_mode, image_mode, compatible_image_mode;
-  if (device_->hasImageStream ())
-  {
-    old_image_mode = device_->getImageOutputMode ();
-     
-    // does the device support the new image mode?
-    image_mode = mapConfigMode2XnMode (config.image_mode);
-
-    if (!device_->findCompatibleImageMode (image_mode, compatible_image_mode))
-    {
-      XnMapOutputMode default_mode = device_->getDefaultImageMode();
-      NODELET_WARN("Could not find any compatible image output mode for %d x %d @ %d. "
-                   "Falling back to default image output mode %d x %d @ %d.",
-                    image_mode.nXRes, image_mode.nYRes, image_mode.nFPS,
-                    default_mode.nXRes, default_mode.nYRes, default_mode.nFPS);
-
-      config.image_mode = mapXnMode2ConfigMode(default_mode);
-      image_mode = compatible_image_mode = default_mode;
+  ImageMode image_mode;
+  getImageFormatFromConfig(image_mode);
+  // The first check below in unnecessary. The config cannot change the image format
+  if (image_mode.format != current_image_mode_.format ||  
+      image_mode_.resolution != current_image_mode.resolution) {
+    freenect_stop_video(device_);
+    freenect_frame_mode mode = freenect_find_video_mode(requested_resolution, requested_format);
+    if (!mode.is_valid) {
+      NODELET_WARN("Invalid image mode provided");
+    } else if (freenect_set_video_mode(device_, mode) < 0) {
+      NODELET_ERROR("Unable to update imagedepth mode."); 
+    } else {
+      // Everything went fine. 
+      current_depth_mode_ = depth_mode;
     }
-  }
-  
-  XnMapOutputMode depth_mode, compatible_depth_mode;
-  depth_mode = mapConfigMode2XnMode (config.depth_mode);
-  if (!device_->findCompatibleDepthMode (depth_mode, compatible_depth_mode))
-  {
-    XnMapOutputMode default_mode = device_->getDefaultDepthMode();
-    NODELET_WARN ("Could not find any compatible depth output mode for %d x %d @ %d. "
-                  "Falling back to default depth output mode %d x %d @ %d.",
-                  depth_mode.nXRes, depth_mode.nYRes, depth_mode.nFPS,
-                  default_mode.nXRes, default_mode.nYRes, default_mode.nFPS);
-    
-    config.depth_mode = mapXnMode2ConfigMode(default_mode);
-    depth_mode = compatible_depth_mode = default_mode;
+    freenect_start_video(device_);
   }
 
-  // here everything is fine. Now make the changes
-  if ( (device_->hasImageStream () && compatible_image_mode != old_image_mode) ||
-       compatible_depth_mode != old_depth_mode)
-  {
-    // streams need to be reset!
-    stopSynchronization();
-
-    if (device_->hasImageStream () && compatible_image_mode != old_image_mode)
-      device_->setImageOutputMode (compatible_image_mode);
-
-    if (compatible_depth_mode != old_depth_mode)
-      device_->setDepthOutputMode (compatible_depth_mode);
-
-    startSynchronization ();
+  // If depth information has changed, stop stream and reset video mode
+  DepthMode depth_mode;
+  getDepthFormatFromConfig(config, depth_mode);
+  if (depth_mode.format != current_depth_mode_.format || 
+      depth_mode_.resolution != current_depth_mode.resolution) {
+    freenect_stop_depth(device_);
+    freenect_frame_mode mode = freenect_find_depth_mode(depth_mode.resolution, depth_mode.format);
+    if (!mode.is_valid) {
+      NODELET_WARN("Invalid depth mode provided");
+    } else if (freenect_set_depth_mode(device_, mode) < 0) {
+      NODELET_ERROR("Unable to update depth mode."); 
+    } else {
+      // Everything went fine. 
+      current_depth_mode_ = depth_mode;
+    }
+    freenect_start_depth(device_);
   }
 
-  // Desired dimensions may require decimation from the hardware-compatible ones
-  image_width_  = image_mode.nXRes;
-  image_height_ = image_mode.nYRes;
-  depth_width_  = depth_mode.nXRes;
-  depth_height_ = depth_mode.nYRes;
-
-  /// @todo Run connectCb if registration setting changes
-  if (device_->isDepthRegistered () && !config.depth_registration)
-  {
-    device_->setDepthRegistration (false);
-  }
-  else if (!device_->isDepthRegistered () && config.depth_registration)
-  {
-    device_->setDepthRegistration (true);
-  }
-
-  // now we can copy
+  // copy over configuration for some standard variables
   config_ = config;
 }
 
-void DriverNodelet::mapConfigMode2XnMode(int config_mode, freenect_video_format& mode, freenect_resolution& res) {
-  switch(config_mode) {
+void DriverNodelet::getImageFormatFromConfig(const Config& config, ImageMode& image) {
+  switch(config.image.mode) {
     case OpenNI_SXGA_15Hz:
-      mode = 
-      res = 
-
+      image.resolution = FREENECT_RESOLUTION_HIGH;
+      image.width = 1280;
+      image.height = 1024;
+      break;
+    case OpenNI_VGA_30Hz:
+    case OpenNI_VGA_25Hz:
+      image.resolution = FREENECT_RESOLUTION_MEDIUM;
+      image.width = 640;
+      image.height = 488; // 488 as per libfreenect docs
+      break;
+    case OpenNI_QVGA_25Hz:
+    case OpenNI_QVGA_30Hz:
+    case OpenNI_QVGA_60Hz:
+      image.resolution = FREENECT_RESOLUTION_LOW;
+      image.width = 320;
+      image.height = 240;
+      break;
+    default:
+      NODELET_WARN("Unsupported image mode! QQVGA not supported."); 
   }
+  image.format = current_image_mode_.format;
 }
 
-void DriverNodelet::mapConfigMode2XnMode(int config_mode, freenect_depth_format& mode, freenect_resolution& res) {
+void DriverNodelet::getDepthFormatFromConfig(const Config& config, DepthMode& depth) {
+  switch(config.depth.mode) {
+    case OpenNI_SXGA_15Hz:
+      depth.resolution = FREENECT_RESOLUTION_HIGH;
+      depth.width = 1280;
+      depth.height = 1024;
+      break;
+    case OpenNI_VGA_30Hz:
+    case OpenNI_VGA_25Hz:
+      depth.resolution = FREENECT_RESOLUTION_MEDIUM;
+      depth.width = 640;
+      depth.height = 488; // 488 as per libfreenect docs
+      break;
+    case OpenNI_QVGA_25Hz:
+    case OpenNI_QVGA_30Hz:
+    case OpenNI_QVGA_60Hz:
+      depth.resolution = FREENECT_RESOLUTION_LOW;
+      depth.width = 320;
+      depth.height = 240;
+      break;
+    default:
+      NODELET_WARN("Unsupported depth mode! QQVGA not supported."); 
+  }
+
+  if (config.depth.registration) {
+    depth.format = FREENECT_DEPTH_REGISTERED;
+  } else {
+    depth.format = FREENECT_DEPTH_MM;
+  }
 }
 
 void DriverNodelet::watchDog (const ros::TimerEvent& event)

@@ -54,6 +54,20 @@
 
 namespace freenect_camera
 {
+  struct ImageMode {
+    freenect_video_format format;
+    freenect_resolution resolution;
+    unsigned height;
+    unsigned width;
+  };
+
+  struct DepthMode {
+    freenect_depth_format format;
+    freenect_resolution resolution;
+    unsigned height;
+    unsigned width;
+  };
+
   ////////////////////////////////////////////////////////////////////////////////////////////
   class DriverNodelet : public nodelet::Nodelet
   {
@@ -66,9 +80,10 @@ namespace freenect_camera
       /** \brief Nodelet initialization routine. */
       virtual void onInit ();
       void setupDevice ();
+      std::string device_serial_number_;
 
-      void mapConfigModeToImage(int config_mode, freenect_video_format& mode, freenect_resolution& res);
-      void mapConfigModeToDepth(int config_mode, freenect_depth_format& mode, freenect_resolution& res);
+      void getImageFormatFromConfig(const Config& config, ImageMode& image);
+      void getDepthFormatFromConfig(const Config& config, DepthMode& depth);
 
       // Callback methods
       void rgbCb(boost::shared_ptr<openni_wrapper::Image> image, void* cookie);
@@ -96,6 +111,10 @@ namespace freenect_camera
       /** \brief the actual freenect device controlled by this nodelet*/
       freenect_device device_;
 
+      /** Whether we are streaming video or not */
+      bool streaming_rgb_;
+      bool streaming_depth_;
+
       /** \brief reconfigure server*/
       boost::shared_ptr<ReconfigureServer> reconfigure_server_;
       Config config_;
@@ -104,13 +123,6 @@ namespace freenect_camera
       boost::shared_ptr<camera_info_manager::CameraInfoManager> rgb_info_manager_, ir_info_manager_;
       std::string rgb_frame_id_;
       std::string depth_frame_id_;
-      int z_offset_mm_;
-
-      /// @todo Prefer binning to changing width/height
-      unsigned image_width_;
-      unsigned image_height_;
-      unsigned depth_width_;
-      unsigned depth_height_;
 
       // Counters/flags for skipping frames
       boost::mutex counter_mutex_;
