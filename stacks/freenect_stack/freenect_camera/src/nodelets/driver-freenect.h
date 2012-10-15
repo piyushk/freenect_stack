@@ -49,65 +49,72 @@
 #include <dynamic_reconfigure/server.h>
 #include <openni_camera/OpenNIConfig.h>
 
-// OpenNI
-#include "openni_camera/openni_driver.h"
+// Freenect
+#include <freenect/libfreenect.h>
 
-namespace openni_camera
+namespace freenect_camera
 {
+  struct ImageMode {
+    freenect_video_format format;
+    freenect_resolution resolution;
+    unsigned height;
+    unsigned width;
+  };
+
+  struct DepthMode {
+    freenect_depth_format format;
+    freenect_resolution resolution;
+    unsigned height;
+    unsigned width;
+  };
+
   ////////////////////////////////////////////////////////////////////////////////////////////
   class DriverNodelet : public nodelet::Nodelet
   {
     public:
       virtual ~DriverNodelet ();
     private:
-      typedef OpenNIConfig Config;
+      typedef openni_camera::OpenNIConfig Config;
       typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
 
       /** \brief Nodelet initialization routine. */
       virtual void onInit ();
-      void onInitImpl ();
       void setupDevice ();
-      void updateModeMaps ();
-      void startSynchronization ();
-      void stopSynchronization ();
-      void setupDeviceModes (int image_mode, int depth_mode);
+      std::string device_serial_number_;
 
-      /// @todo Consolidate all the mode stuff, maybe even in different class/header
-      int mapXnMode2ConfigMode (const XnMapOutputMode& output_mode) const;
-      XnMapOutputMode mapConfigMode2XnMode (int mode) const;
+      void getImageFormatFromConfig(const Config& config, ImageMode& image);
+      void getDepthFormatFromConfig(const Config& config, DepthMode& depth);
 
       // Callback methods
       void rgbCb(boost::shared_ptr<openni_wrapper::Image> image, void* cookie);
       void depthCb(boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie);
-      void irCb(boost::shared_ptr<openni_wrapper::IRImage> ir_image, void* cookie);
       void configCb(Config &config, uint32_t level);
 
       void rgbConnectCb();
       void depthConnectCb();
-      void irConnectCb();
 
       // Methods to get calibration parameters for the various cameras
       sensor_msgs::CameraInfoPtr getDefaultCameraInfo(int width, int height, double f) const;
       sensor_msgs::CameraInfoPtr getRgbCameraInfo(ros::Time time) const;
-      sensor_msgs::CameraInfoPtr getIrCameraInfo(ros::Time time) const;
       sensor_msgs::CameraInfoPtr getDepthCameraInfo(ros::Time time) const;
-      sensor_msgs::CameraInfoPtr getProjectorCameraInfo(ros::Time time) const;
 
       // published topics
       image_transport::CameraPublisher pub_rgb_;
       image_transport::CameraPublisher pub_depth_, pub_depth_registered_;
-      image_transport::CameraPublisher pub_ir_;
-      ros::Publisher pub_projector_info_;
 
       // publish methods
       void publishRgbImage(const openni_wrapper::Image& image, ros::Time time) const;
+      void publishIrImage(const openni_wrapper::Image& image, ros::Time time) const;
       void publishDepthImage(const openni_wrapper::DepthImage& depth, ros::Time time) const;
-      void publishIrImage(const openni_wrapper::IRImage& ir, ros::Time time) const;
 
-      /** \brief the actual openni device*/
-      boost::shared_ptr<openni_wrapper::OpenNIDevice> device_;
-      boost::thread init_thread_;
-      boost::mutex connect_mutex_;
+      /** \brief the freenect context. used to instantiate devices */
+      freenect_context driver_;
+      /** \brief the actual freenect device controlled by this nodelet*/
+      freenect_device device_;
+
+      /** Whether we are streaming video or not */
+      bool currently_streaming_rgb_;
+      bool currently_streaming_depth_;
 
       /** \brief reconfigure server*/
       boost::shared_ptr<ReconfigureServer> reconfigure_server_;
@@ -117,23 +124,12 @@ namespace openni_camera
       boost::shared_ptr<camera_info_manager::CameraInfoManager> rgb_info_manager_, ir_info_manager_;
       std::string rgb_frame_id_;
       std::string depth_frame_id_;
-      double depth_ir_offset_x_;
-      double depth_ir_offset_y_;
-      int z_offset_mm_;
-
-      /// @todo Prefer binning to changing width/height
-      unsigned image_width_;
-      unsigned image_height_;
-      unsigned depth_width_;
-      unsigned depth_height_;
 
       // Counters/flags for skipping frames
       boost::mutex counter_mutex_;
       int rgb_frame_counter_;
       int depth_frame_counter_;
-      int ir_frame_counter_;
       bool publish_rgb_;
-      bool publish_ir_;
       bool publish_depth_;
       void checkFrameCounters();
 
