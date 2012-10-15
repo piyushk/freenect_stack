@@ -1,5 +1,6 @@
 #include <freenect/libfreenect.h>
 #include <boost/shared_ptr.hpp>
+#include <boost/noncopyable.hpp>
 #include <stdexcept>
 
 namespace freenect_camera {
@@ -10,9 +11,13 @@ namespace freenect_camera {
   static const std::string VENDOR_ID = 0x45e;
   static const std::string UNKNOWN = "unknown";
 
-  class FreenectDevice {
+  typedef freenect_frame_mode
+  typedef freenect_frame_mode OutputMode;
+
+  class FreenectDevice : public boost::noncopyable {
 
     public:
+
       FreenectDevice(freenect_context* driver, std::string serial) {
         if (freenect_open_device_by_serial(driver, &device_, serial.c_str()) < 0) {
           throw std::runtime_error("Unable to open specified kinect");
@@ -41,9 +46,132 @@ namespace freenect_camera {
         return device_serial_.c_str();
       }
 
-      void registerImageCallback()
-      void registerDepthCallback()
-      void registerIRCallback()
+      template<typename T> void registerImageCallback (void (T::*callback)(void* image, void* cookie), T& instance, void* cookie = NULL) {
+        image_callback_ = boost::bind(callback, boost::ref(instance), _1, cookie);
+      }
+
+      template<typename T> void registerDepthCallback (void (T::*callback)(void* image, void* cookie), T& instance, void* cookie = NULL) {
+        depth_callback_ = boost::bind(callback, boost::ref(instance), _1, cookie);
+      }
+
+      template<typename T> void registerIRCallback (void (T::*callback)(void* image, void* cookie), T& instance, void* cookie = NULL) {
+        ir_callback_ = boost::bind(callback, boost::ref(instance), _1, cookie);
+      }
+
+      bool isImageStreamRunning() {
+        return streaming_video_ && _isImageModeEnabled();
+      }
+
+      bool isIRStreamRunning() {
+        return streaming_video_ && !_isImageModeEnabled();
+      }
+
+      bool isDepthStreamRunning() {
+        return streaming_depth_;
+      }
+
+      bool hasImageStream() {
+        return true;
+      }
+
+      bool hasDepthStream() {
+        return true;
+      }
+
+      bool hasIRStream() {
+        return true;
+      }
+
+      bool isDepthRegistrationSupported() {
+        return true;
+      }
+
+      bool isSynchronizedSupported() {
+        return false;
+      }
+
+      bool isSynchronized() {
+        return false;
+      }
+
+      bool setSynchronization(bool on_off) {
+        throw std::runtime_error("the kinect does not support hardware synchronization");
+      }
+
+      void _stopVideoStream() {
+        freenect_stop_video(device_);
+      }
+
+      void _startVideoStream(freenect_frame_mode mode) {
+        freenect_frame_mode mode = 
+          freenect_find_video_mode(mode.resolution, mode.format);
+        if (!mode.is_valid) {
+          NODELET_WARN("Invalid image mode provided");
+        } else if (freenect_set_video_mode(device_, mode) < 0) {
+          NODELET_ERROR("Unable to update image mode."); 
+        } else {
+          // Everything went fine. 
+          mode_ = mode;
+        }
+        freenect_start_video(device_);
+      }
+
+      void stopImageStream() {
+        if (isImageModeEnabled_()) {
+          _stopVideoStream();
+        }
+      }
+
+      void startImageStream() {
+        freenect_frame_mode mode = image_mode_;
+        mode.format = FREENECT_VIDEO_RGB;
+        _startVideoStream(mode);
+      }
+
+      void stopIRStream() {
+        if (!isImageModeEnabled_()) {
+          _stopVideoStream();
+        }
+      }
+
+      void startIRStream() {
+        freenect_frame_mode mode = image_mode_;
+        mode.format = FREENECT_VIDEO_IR_8BIT;
+        _stopVideoStream(mode);
+      }
+
+      void stopDepthStream() {
+        freenect_stop_depth(device_);
+      }
+
+      void startDepthStream() {
+        freenect_frame_mode mode = 
+          freenect_find_depth_mode(depth_mode_.resolution, depth_mode_.format);
+        if (!mode.is_valid) {
+          NODELET_WARN("Invalid depth mode provided");
+        } else if (freenect_set_depth_mode(device_, mode) < 0) {
+          NODELET_ERROR("Unable to update depth mode."); 
+        } else {
+          // Everything went fine. 
+          depth_mode_ = depth_mode;
+        }
+        freenect_start_depth(device_);
+      }
+
+      setImageOutputMode()
+      getDefaultImageMode()
+      findCompatibleImageMode()
+
+      setDepthOutputMode()
+      getDefaultDepthMode()
+      findCompatibleDepthMode()
+
+      setDepthRegistration() {
+        if (streaming_depth_)
+          stopDepthStream()
+        if (streaming_depth_)
+          startDepthStream()
+      }
 
     private:
 
@@ -52,13 +180,26 @@ namespace freenect_camera {
       freenect_frame_mode depth_mode_;
       std_string device_serial_;
 
+      boost::function<void(void*)> image_callback_;
+      boost::function<void(void*)> depth_callback_;
+      boost::function<void(void*)> ir_callback_;
+
+      bool streaming_video_;
+      bool streaming_depth_;
+
       static void freenectDepthCallback(freenect_device *dev, void *depth, uint32_t timestamp) {
         FreenectDevice* device = static_cast<FreenectDevice*>(freenect_get_user(dev));
+        // Do any processing here
+        depth_callback_->operator()(depth);
         device->depthCallback(depth, timestamp);
       }
       static void freenectVideoCallback(freenect_device *dev, void *video, uint32_t timestamp) {
         FreenectDevice* device = static_cast<FreenectDevice*>(freenect_get_user(dev));
         device->videoCallback(video, timestamp);
+      }
+
+      bool _isImageModeEnabled() {
+        return video_mode_.format == FREENECT_VIDEO_RGB;
       }
 
   }

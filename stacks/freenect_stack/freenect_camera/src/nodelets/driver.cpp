@@ -733,49 +733,31 @@ void DriverNodelet::stopSynchronization()
 
 void DriverNodelet::updateModeMaps ()
 {
-  XnMapOutputMode output_mode;
+  OutputMode output_mode;
 
-  output_mode.nXRes = XN_SXGA_X_RES;
-  output_mode.nYRes = XN_SXGA_Y_RES;
-  output_mode.nFPS  = 15;
-  xn2config_map_[output_mode] = OpenNI_SXGA_15Hz;
-  config2xn_map_[OpenNI_SXGA_15Hz] = output_mode;
+  output_mode.resolution = FREENECT_RESOLUTION_HIGH;
+  mode2config_map_[output_mode] = OpenNI_SXGA_15Hz;
+  config2mode_map_[OpenNI_SXGA_15Hz] = output_mode;
 
-  output_mode.nXRes = XN_VGA_X_RES;
-  output_mode.nYRes = XN_VGA_Y_RES;
-  output_mode.nFPS  = 25;
-  xn2config_map_[output_mode] = OpenNI_VGA_25Hz;
-  config2xn_map_[OpenNI_VGA_25Hz] = output_mode;
-  output_mode.nFPS  = 30;
-  xn2config_map_[output_mode] = OpenNI_VGA_30Hz;
-  config2xn_map_[OpenNI_VGA_30Hz] = output_mode;
+  output_mode.resolution = FREENECT_RESOLUTION_MEDIUM;
+  mode2config_map_[output_mode] = OpenNI_VGA_30Hz;
+  config2mode_map_[OpenNI_VGA_25Hz] = output_mode;
+  config2mode_map_[OpenNI_VGA_30Hz] = output_mode;
 
-  output_mode.nXRes = XN_QVGA_X_RES;
-  output_mode.nYRes = XN_QVGA_Y_RES;
-  output_mode.nFPS  = 25;
-  xn2config_map_[output_mode] = OpenNI_QVGA_25Hz;
-  config2xn_map_[OpenNI_QVGA_25Hz] = output_mode;
-  output_mode.nFPS  = 30;
-  xn2config_map_[output_mode] = OpenNI_QVGA_30Hz;
-  config2xn_map_[OpenNI_QVGA_30Hz] = output_mode;
-  output_mode.nFPS  = 60;
-  xn2config_map_[output_mode] = OpenNI_QVGA_60Hz;
-  config2xn_map_[OpenNI_QVGA_60Hz] = output_mode;
+  output_mode.resolution = FREENECT_RESOLUTION_LOW;
+  mode2config_map_[output_mode] = OpenNI_QVGA_30Hz;
+  config2mode_map_[OpenNI_QVGA_25Hz] = output_mode;
+  config2mode_map_[OpenNI_QVGA_30Hz] = output_mode;
+  config2mode_map_[OpenNI_QVGA_60Hz] = output_mode;
 
-  output_mode.nXRes = XN_QQVGA_X_RES;
-  output_mode.nYRes = XN_QQVGA_Y_RES;
-  output_mode.nFPS  = 25;
-  xn2config_map_[output_mode] = OpenNI_QQVGA_25Hz;
-  config2xn_map_[OpenNI_QQVGA_25Hz] = output_mode;
-  output_mode.nFPS  = 30;
-  xn2config_map_[output_mode] = OpenNI_QQVGA_30Hz;
-  config2xn_map_[OpenNI_QQVGA_30Hz] = output_mode;
-  output_mode.nFPS  = 60;
-  xn2config_map_[output_mode] = OpenNI_QQVGA_60Hz;
-  config2xn_map_[OpenNI_QQVGA_60Hz] = output_mode;
+  output_mode.resolution = FREENECT_RESOLUTION_DUMMY;
+  mode2config_map_[output_mode] = OpenNI_QVGA_30Hz; //shouldn't be using this output mode anyway
+  config2mode_map_[OpenNI_QQVGA_25Hz] = output_mode;
+  config2mode_map_[OpenNI_QQVGA_30Hz] = output_mode;
+  config2mode_map_[OpenNI_QQVGA_60Hz] = output_mode;
 }
 
-int DriverNodelet::mapXnMode2ConfigMode (const XnMapOutputMode& output_mode) const
+int DriverNodelet::mapMode (const XnMapOutputMode& output_mode) const
 {
   std::map<XnMapOutputMode, int, modeComp>::const_iterator it = xn2config_map_.find (output_mode);
 

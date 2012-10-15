@@ -70,11 +70,10 @@ namespace openni_camera
       void updateModeMaps ();
       void startSynchronization ();
       void stopSynchronization ();
-      void setupDeviceModes (int image_mode, int depth_mode);
 
       /// @todo Consolidate all the mode stuff, maybe even in different class/header
-      int mapXnMode2ConfigMode (const XnMapOutputMode& output_mode) const;
-      XnMapOutputMode mapConfigMode2XnMode (int mode) const;
+      int mapMode2ConfigMode (const OutputMode& output_mode) const;
+      OutputMode mapConfigMode2OutputMode (int mode) const;
 
       // Callback methods
       void rgbCb(boost::shared_ptr<openni_wrapper::Image> image, void* cookie);
@@ -146,15 +145,15 @@ namespace openni_camera
 
       struct modeComp
       {
-        bool operator () (const XnMapOutputMode& mode1, const XnMapOutputMode& mode2) const
+        bool operator () (const OutputMode& mode1, const OutputMode& mode2) const
         {
-          if (mode1.nXRes < mode2.nXRes)
+          if (mode1.resolution < mode2.resolution)
             return true;
-          else if (mode1.nXRes > mode2.nXRes)
+          else if (mode1.resolution > mode2.resolution)
             return false;
-          else if (mode1.nYRes < mode2.nYRes)
+          else if (mode1.dummy < mode2.dummy)
             return true;
-          else if (mode1.nYRes > mode2.nYRes)
+          else if (mode1.dummy > mode2.dummy)
             return false;
           else if (mode1.nFPS < mode2.nFPS)
             return true;
@@ -162,8 +161,8 @@ namespace openni_camera
             return false;
         }
       };
-      std::map<XnMapOutputMode, int, modeComp> xn2config_map_;
-      std::map<int, XnMapOutputMode> config2xn_map_;
+      std::map<OutputMode, int, modeComp> mode2config_map_;
+      std::map<int, OutputMode> config2mode_map_;
   };
 }
 
