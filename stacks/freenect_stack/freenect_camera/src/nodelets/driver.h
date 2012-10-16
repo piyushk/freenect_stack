@@ -43,16 +43,17 @@
 #include <ros/ros.h>
 #include <nodelet/nodelet.h>
 #include <image_transport/image_transport.h>
+#include <boost/thread.hpp>
 
 // Configuration
 #include <camera_info_manager/camera_info_manager.h>
 #include <dynamic_reconfigure/server.h>
-#include <openni_camera/OpenNIConfig.h>
+#include <freenect_camera/FreenectConfig.h>
 
 // OpenNI
-#include "openni_camera/openni_driver.h"
+#include <freenect_camera/freenect_device.hpp>
 
-namespace openni_camera
+namespace freenect_camera
 {
   ////////////////////////////////////////////////////////////////////////////////////////////
   class DriverNodelet : public nodelet::Nodelet
@@ -60,7 +61,7 @@ namespace openni_camera
     public:
       virtual ~DriverNodelet ();
     private:
-      typedef OpenNIConfig Config;
+      typedef FreenectConfig Config;
       typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
 
       /** \brief Nodelet initialization routine. */
@@ -76,9 +77,9 @@ namespace openni_camera
       OutputMode mapConfigMode2OutputMode (int mode) const;
 
       // Callback methods
-      void rgbCb(boost::shared_ptr<openni_wrapper::Image> image, void* cookie);
-      void depthCb(boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie);
-      void irCb(boost::shared_ptr<openni_wrapper::IRImage> ir_image, void* cookie);
+      void rgbCb(boost::shared_ptr<Image> image, void* cookie);
+      void depthCb(boost::shared_ptr<DepthImage> depth_image, void* cookie);
+      void irCb(boost::shared_ptr<IRImage> ir_image, void* cookie);
       void configCb(Config &config, uint32_t level);
 
       void rgbConnectCb();
@@ -99,12 +100,12 @@ namespace openni_camera
       ros::Publisher pub_projector_info_;
 
       // publish methods
-      void publishRgbImage(const openni_wrapper::Image& image, ros::Time time) const;
-      void publishDepthImage(const openni_wrapper::DepthImage& depth, ros::Time time) const;
-      void publishIrImage(const openni_wrapper::IRImage& ir, ros::Time time) const;
+      void publishRgbImage(const Image& image, ros::Time time) const;
+      void publishDepthImage(const DepthImage& depth, ros::Time time) const;
+      void publishIrImage(const IRImage& ir, ros::Time time) const;
 
-      /** \brief the actual openni device*/
-      boost::shared_ptr<openni_wrapper::OpenNIDevice> device_;
+      /** \brief the actual openni device */
+      boost::shared_ptr<FreenectDevice> device_;
       boost::thread init_thread_;
       boost::mutex connect_mutex_;
 
@@ -151,14 +152,8 @@ namespace openni_camera
             return true;
           else if (mode1.resolution > mode2.resolution)
             return false;
-          else if (mode1.dummy < mode2.dummy)
-            return true;
-          else if (mode1.dummy > mode2.dummy)
-            return false;
-          else if (mode1.nFPS < mode2.nFPS)
-            return true;
           else
-            return false;
+            return false; // they are the same, return false
         }
       };
       std::map<OutputMode, int, modeComp> mode2config_map_;

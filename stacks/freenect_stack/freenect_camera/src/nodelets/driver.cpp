@@ -37,23 +37,18 @@
  *
  */
 #include "driver.h" /// @todo Get rid of this header entirely?
-#include "openni_camera/openni_device_kinect.h"
-#include "openni_camera/openni_image.h"
-#include "openni_camera/openni_depth_image.h"
-#include "openni_camera/openni_ir_image.h"
 #include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/distortion_models.h>
 #include <boost/algorithm/string/replace.hpp>
 
 using namespace std;
-using namespace openni_wrapper;
-namespace openni_camera
+namespace freenect_camera
 {
-inline bool operator == (const XnMapOutputMode& mode1, const XnMapOutputMode& mode2)
+inline bool operator == (const OutputMode& mode1, const OutputMode& mode2)
 {
-  return (mode1.nXRes == mode2.nXRes && mode1.nYRes == mode2.nYRes && mode1.nFPS == mode2.nFPS);
+  return (mode1.resolution == mode2.resolution);
 }
-inline bool operator != (const XnMapOutputMode& mode1, const XnMapOutputMode& mode2)
+inline bool operator != (const OutputMode& mode1, const OutputMode& mode2)
 {
   return !(mode1 == mode2);
 }
@@ -64,10 +59,10 @@ DriverNodelet::~DriverNodelet ()
   init_thread_.interrupt();
   init_thread_.join();
 
-  // Join OpenNI wrapper threads, which call into rgbCb() etc. Those may use device_ methods,
+  // Join Freenect wrapper threads, which call into rgbCb() etc. Those may use device_ methods,
   // so make sure they've finished before destroying device_.
-  if (device_)
-    device_->shutdown();
+  // if (device_)
+  //   device_->shutdown();
 
   /// @todo Test watchdog timer for race conditions. May need to use a separate callback queue
   /// controlled by the driver nodelet.
@@ -145,7 +140,7 @@ void DriverNodelet::onInitImpl ()
   logger_ccp->setLevel(log4cxx::Level::getFatal());
   logger_cim->setLevel(log4cxx::Level::getWarn());
   // Also suppress sync warnings from image_transport::CameraSubscriber. When subscribing to
-  // depth_registered/foo with OpenNI registration disabled, the rectify nodelet for depth_registered/
+  // depth_registered/foo with Freenect registration disabled, the rectify nodelet for depth_registered/
   // will complain because it receives depth_registered/camera_info (from the register nodelet), but
   // the driver is not publishing depth_registered/image_raw.
   log4cxx::LoggerPtr logger_its = log4cxx::Logger::getLogger("ros.image_transport.sync");
@@ -256,17 +251,17 @@ void DriverNodelet::setupDevice ()
         device_ = driver.getDeviceBySerialNumber (device_id);
       }
     }
-    catch (const Exception& exception)
+    catch (exception& e)
     {
       if (!device_)
       {
-        NODELET_INFO ("No matching device found.... waiting for devices. Reason: %s", exception.what ());
+        NODELET_INFO ("No matching device found.... waiting for devices. Reason: %s", e.what ());
         boost::this_thread::sleep(boost::posix_time::seconds(3));
         continue;
       }
       else
       {
-        NODELET_ERROR ("Could not retrieve device. Reason: %s", exception.what ());
+        NODELET_FATAL ("Could not retrieve device. Reason: %s", e.what ());
         exit (-1);
       }
     }
@@ -319,7 +314,7 @@ void DriverNodelet::depthConnectCb()
   /// @todo pub_projector_info_? Probably also subscribed to a depth image if you need it
   bool need_depth =
     device_->isDepthRegistered() ? pub_depth_registered_.getNumSubscribers() > 0 : pub_depth_.getNumSubscribers() > 0;
-  /// @todo Warn if requested topics don't agree with OpenNI registration setting
+  /// @todo Warn if requested topics don't agree with Freenect registration setting
 
   if (need_depth && !device_->isDepthStreamRunning())
   {
@@ -376,7 +371,7 @@ void DriverNodelet::checkFrameCounters()
     }
 }
 
-void DriverNodelet::rgbCb(boost::shared_ptr<openni_wrapper::Image> image, void* cookie)
+void DriverNodelet::rgbCb(boost::shared_ptr<Image> image, void* cookie)
 {
   ros::Time time = ros::Time::now () + ros::Duration(config_.image_time_offset);
   time_stamp_ = time; // for watchdog
@@ -398,7 +393,7 @@ void DriverNodelet::rgbCb(boost::shared_ptr<openni_wrapper::Image> image, void* 
   publish_rgb_ = false;
 }
 
-void DriverNodelet::depthCb(boost::shared_ptr<openni_wrapper::DepthImage> depth_image, void* cookie)
+void DriverNodelet::depthCb(boost::shared_ptr<DepthImage> depth_image, void* cookie)
 {
   ros::Time time = ros::Time::now () + ros::Duration(config_.depth_time_offset);
   time_stamp_ = time; // for watchdog
@@ -420,7 +415,7 @@ void DriverNodelet::depthCb(boost::shared_ptr<openni_wrapper::DepthImage> depth_
   publish_depth_ = false;
 }
 
-void DriverNodelet::irCb(boost::shared_ptr<openni_wrapper::IRImage> ir_image, void* cookie)
+void DriverNodelet::irCb(boost::shared_ptr<IRImage> ir_image, void* cookie)
 {
   ros::Time time = ros::Time::now() + ros::Duration(config_.depth_time_offset);
   time_stamp_ = time; // for watchdog
@@ -441,18 +436,18 @@ void DriverNodelet::irCb(boost::shared_ptr<openni_wrapper::IRImage> ir_image, vo
   publish_ir_ = false;
 }
 
-void DriverNodelet::publishRgbImage(const openni_wrapper::Image& image, ros::Time time) const
+void DriverNodelet::publishRgbImage(const freenect_camera::Image& image, ros::Time time) const
 {
   /// @todo image_width_, image_height_ may be wrong here if downsampling is on?
   sensor_msgs::ImagePtr rgb_msg = boost::make_shared<sensor_msgs::Image >();
   rgb_msg->header.stamp = time;
   rgb_msg->header.frame_id = rgb_frame_id_;
-  if (image.getEncoding() == openni_wrapper::Image::BAYER_GRBG)
+  if (image.getEncoding() == Image::BAYER_GRBG)
   {
     rgb_msg->encoding = sensor_msgs::image_encodings::BAYER_GRBG8;
     rgb_msg->step = image_width_;
   }
-  else if (image.getEncoding() == openni_wrapper::Image::YUV422)
+  else if (image.getEncoding() == Image::YUV422)
   {
     rgb_msg->encoding = sensor_msgs::image_encodings::YUV422;
     rgb_msg->step = image_width_ * 2; // 4 bytes for 2 pixels
@@ -466,7 +461,7 @@ void DriverNodelet::publishRgbImage(const openni_wrapper::Image& image, ros::Tim
   pub_rgb_.publish(rgb_msg, getRgbCameraInfo(time));
 }
 
-void DriverNodelet::publishDepthImage(const openni_wrapper::DepthImage& depth, ros::Time time) const
+void DriverNodelet::publishDepthImage(const freenect_camera::DepthImage& depth, ros::Time time) const
 {
   bool registered = device_->isDepthRegistered();
   
@@ -479,8 +474,7 @@ void DriverNodelet::publishDepthImage(const openni_wrapper::DepthImage& depth, r
   depth_msg->step            = depth_msg->width * sizeof(short);
   depth_msg->data.resize(depth_msg->height * depth_msg->step);
 
-  depth.fillDepthImageRaw(depth_width_, depth_height_, reinterpret_cast<unsigned short*>(&depth_msg->data[0]),
-                          depth_msg->step);
+  depth.fillDepthImageRaw(reinterpret_cast<unsigned short*>(&depth_msg->data[0]));
 
   if (z_offset_mm_ != 0)
   {
@@ -510,7 +504,7 @@ void DriverNodelet::publishDepthImage(const openni_wrapper::DepthImage& depth, r
   }
 }
 
-void DriverNodelet::publishIrImage(const openni_wrapper::IRImage& ir, ros::Time time) const
+void DriverNodelet::publishIrImage(const freenect_camera::IRImage& ir, ros::Time time) const
 {
   sensor_msgs::ImagePtr ir_msg = boost::make_shared<sensor_msgs::Image>();
   ir_msg->header.stamp    = time;
@@ -521,7 +515,7 @@ void DriverNodelet::publishIrImage(const openni_wrapper::IRImage& ir, ros::Time 
   ir_msg->step            = ir_msg->width * sizeof(uint16_t);
   ir_msg->data.resize(ir_msg->height * ir_msg->step);
 
-  ir.fillRaw(ir.getWidth(), ir.getHeight(), reinterpret_cast<unsigned short*>(&ir_msg->data[0]));
+  ir.fillDepthImageRaw(reinterpret_cast<unsigned short*>(&ir_msg->data[0]));
 
   pub_ir_.publish(ir_msg, getIrCameraInfo(time));
 }
@@ -636,41 +630,41 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
   depth_ir_offset_y_ = config.depth_ir_offset_y;
   z_offset_mm_ = config.z_offset_mm;
 
-  XnMapOutputMode old_depth_mode = device_->getDepthOutputMode ();
+  OutputMode old_depth_mode = device_->getDepthOutputMode ();
   
   // We need this for the ASUS Xtion Pro
-  XnMapOutputMode old_image_mode = old_depth_mode, image_mode, compatible_image_mode;
+  OutputMode old_image_mode = old_depth_mode, image_mode, compatible_image_mode;
   if (device_->hasImageStream ())
   {
     old_image_mode = device_->getImageOutputMode ();
      
     // does the device support the new image mode?
-    image_mode = mapConfigMode2XnMode (config.image_mode);
+    image_mode = mapConfigMode2OutputMode (config.image_mode);
 
     if (!device_->findCompatibleImageMode (image_mode, compatible_image_mode))
     {
-      XnMapOutputMode default_mode = device_->getDefaultImageMode();
-      NODELET_WARN("Could not find any compatible image output mode for %d x %d @ %d. "
-                   "Falling back to default image output mode %d x %d @ %d.",
-                    image_mode.nXRes, image_mode.nYRes, image_mode.nFPS,
-                    default_mode.nXRes, default_mode.nYRes, default_mode.nFPS);
+      OutputMode default_mode = device_->getDefaultImageMode();
+      NODELET_WARN("Could not find any compatible image output mode for %d."
+                   "Falling back to default image output mode %d.",
+                    image_mode.resolution,
+                    default_mode.resolution);
 
-      config.image_mode = mapXnMode2ConfigMode(default_mode);
+      config.image_mode = mapMode2ConfigMode(default_mode);
       image_mode = compatible_image_mode = default_mode;
     }
   }
   
-  XnMapOutputMode depth_mode, compatible_depth_mode;
-  depth_mode = mapConfigMode2XnMode (config.depth_mode);
+  OutputMode depth_mode, compatible_depth_mode;
+  depth_mode = mapConfigMode2OutputMode (config.depth_mode);
   if (!device_->findCompatibleDepthMode (depth_mode, compatible_depth_mode))
   {
-    XnMapOutputMode default_mode = device_->getDefaultDepthMode();
-    NODELET_WARN ("Could not find any compatible depth output mode for %d x %d @ %d. "
-                  "Falling back to default depth output mode %d x %d @ %d.",
-                  depth_mode.nXRes, depth_mode.nYRes, depth_mode.nFPS,
-                  default_mode.nXRes, default_mode.nYRes, default_mode.nFPS);
+    OutputMode default_mode = device_->getDefaultDepthMode();
+    NODELET_WARN("Could not find any compatible depth output mode for %d."
+                 "Falling back to default depth output mode %d.",
+                  depth_mode.resolution,
+                  default_mode.resolution);
     
-    config.depth_mode = mapXnMode2ConfigMode(default_mode);
+    config.depth_mode = mapMode2ConfigMode(default_mode);
     depth_mode = compatible_depth_mode = default_mode;
   }
 
@@ -691,10 +685,10 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
   }
 
   // Desired dimensions may require decimation from the hardware-compatible ones
-  image_width_  = image_mode.nXRes;
-  image_height_ = image_mode.nYRes;
-  depth_width_  = depth_mode.nXRes;
-  depth_height_ = depth_mode.nYRes;
+  image_width_  = image_mode.width;
+  image_height_ = image_mode.height;
+  depth_width_  = depth_mode.width;
+  depth_height_ = depth_mode.height;
 
   /// @todo Run connectCb if registration setting changes
   if (device_->isDepthRegistered () && !config.depth_registration)
@@ -714,7 +708,6 @@ void DriverNodelet::startSynchronization()
 {
   if (device_->isSynchronizationSupported() &&
       !device_->isSynchronized() &&
-      device_->getImageOutputMode().nFPS == device_->getDepthOutputMode().nFPS &&
       device_->isImageStreamRunning() &&
       device_->isDepthStreamRunning() )
   {
@@ -736,44 +729,44 @@ void DriverNodelet::updateModeMaps ()
   OutputMode output_mode;
 
   output_mode.resolution = FREENECT_RESOLUTION_HIGH;
-  mode2config_map_[output_mode] = OpenNI_SXGA_15Hz;
-  config2mode_map_[OpenNI_SXGA_15Hz] = output_mode;
+  mode2config_map_[output_mode] = Freenect_SXGA_15Hz;
+  config2mode_map_[Freenect_SXGA_15Hz] = output_mode;
 
   output_mode.resolution = FREENECT_RESOLUTION_MEDIUM;
-  mode2config_map_[output_mode] = OpenNI_VGA_30Hz;
-  config2mode_map_[OpenNI_VGA_25Hz] = output_mode;
-  config2mode_map_[OpenNI_VGA_30Hz] = output_mode;
+  mode2config_map_[output_mode] = Freenect_VGA_30Hz;
+  config2mode_map_[Freenect_VGA_25Hz] = output_mode;
+  config2mode_map_[Freenect_VGA_30Hz] = output_mode;
 
   output_mode.resolution = FREENECT_RESOLUTION_LOW;
-  mode2config_map_[output_mode] = OpenNI_QVGA_30Hz;
-  config2mode_map_[OpenNI_QVGA_25Hz] = output_mode;
-  config2mode_map_[OpenNI_QVGA_30Hz] = output_mode;
-  config2mode_map_[OpenNI_QVGA_60Hz] = output_mode;
+  mode2config_map_[output_mode] = Freenect_QVGA_30Hz;
+  config2mode_map_[Freenect_QVGA_25Hz] = output_mode;
+  config2mode_map_[Freenect_QVGA_30Hz] = output_mode;
+  config2mode_map_[Freenect_QVGA_60Hz] = output_mode;
 
   output_mode.resolution = FREENECT_RESOLUTION_DUMMY;
-  mode2config_map_[output_mode] = OpenNI_QVGA_30Hz; //shouldn't be using this output mode anyway
-  config2mode_map_[OpenNI_QQVGA_25Hz] = output_mode;
-  config2mode_map_[OpenNI_QQVGA_30Hz] = output_mode;
-  config2mode_map_[OpenNI_QQVGA_60Hz] = output_mode;
+  mode2config_map_[output_mode] = Freenect_QVGA_30Hz; //shouldn't be using this output mode anyway
+  config2mode_map_[Freenect_QQVGA_25Hz] = output_mode;
+  config2mode_map_[Freenect_QQVGA_30Hz] = output_mode;
+  config2mode_map_[Freenect_QQVGA_60Hz] = output_mode;
 }
 
-int DriverNodelet::mapMode (const XnMapOutputMode& output_mode) const
+int DriverNodelet::mapMode2ConfigMode (const OutputMode& output_mode) const
 {
-  std::map<XnMapOutputMode, int, modeComp>::const_iterator it = xn2config_map_.find (output_mode);
+  std::map<OutputMode, int, modeComp>::const_iterator it = mode2config_map_.find (output_mode);
 
-  if (it == xn2config_map_.end ())
+  if (it == mode2config_map_.end ())
   {
-    NODELET_ERROR ("mode %dx%d@%d could not be found", output_mode.nXRes, output_mode.nYRes, output_mode.nFPS);
+    NODELET_ERROR ("mode not be found");
     exit (-1);
   }
   else
     return it->second;
 }
 
-XnMapOutputMode DriverNodelet::mapConfigMode2XnMode (int mode) const
+OutputMode DriverNodelet::mapConfigMode2OutputMode (int mode) const
 {
-  std::map<int, XnMapOutputMode>::const_iterator it = config2xn_map_.find (mode);
-  if (it == config2xn_map_.end ())
+  std::map<int, OutputMode>::const_iterator it = config2mode_map_.find (mode);
+  if (it == config2mode_map_.end ())
   {
     NODELET_ERROR ("mode %d could not be found", mode);
     exit (-1);
@@ -801,4 +794,4 @@ void DriverNodelet::watchDog (const ros::TimerEvent& event)
 
 // Register as nodelet
 #include <pluginlib/class_list_macros.h>
-PLUGINLIB_DECLARE_CLASS (openni_camera, driver, openni_camera::DriverNodelet, nodelet::Nodelet);
+PLUGINLIB_DECLARE_CLASS (freenect_camera, driver, freenect_camera::DriverNodelet, nodelet::Nodelet);

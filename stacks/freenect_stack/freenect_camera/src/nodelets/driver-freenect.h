@@ -47,7 +47,7 @@
 // Configuration
 #include <camera_info_manager/camera_info_manager.h>
 #include <dynamic_reconfigure/server.h>
-#include <openni_camera/OpenNIConfig.h>
+#include <freenect_camera/FreenectConfig.h>
 
 // Freenect
 #include <freenect/libfreenect.h>
@@ -74,7 +74,7 @@ namespace freenect_camera
     public:
       virtual ~DriverNodelet ();
     private:
-      typedef openni_camera::OpenNIConfig Config;
+      typedef freenect_camera::FreenectConfig Config;
       typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
 
       /** \brief Nodelet initialization routine. */

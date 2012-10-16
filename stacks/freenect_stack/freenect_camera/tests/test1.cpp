@@ -4,6 +4,7 @@ http://jamesreuss.wordpress.com/2011/12/23/working-out-how-to-use-libfreenect-in
 
 #include <ros/ros.h>
 #include <freenect/libfreenect.h>
+#include <freenect/libfreenect-registration.h>
 #include <stdio.h>
 
 freenect_context *freenectContext;
@@ -16,7 +17,7 @@ int main(int argc, char **argv) {
     ros::init(argc,argv,"test");
     ros::Time::init();
 
-    int idx;
+    int idx = 0;
     ros::param::get("~idx", idx);
 
     // freenect_init initialises a freenect context. The second parameter can be NULL if not using mutliple contexts.
@@ -39,16 +40,19 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    freenect_set_tilt_degs(freenectDevice, 0);
+    freenect_registration registration = freenect_copy_registration(freenectDevice);
+    printf("Baseline: %f\n", registration.zero_plane_info.dcmos_emitter_dist);
+    printf("Focal length: %f\n", registration.zero_plane_info.reference_distance);
+    printf("Focal length: %f\n", registration.zero_plane_info.reference_pixel_size);
+
+
+    //freenect_set_tilt_degs(freenectDevice, 0);
     freenect_set_led(freenectDevice, LED_BLINK_RED_YELLOW);
     printf("Done Functions\n");
 
     freenect_close_device(freenectDevice);
     freenect_shutdown(freenectContext);
     printf("Done!\n");
-
-    ros::Rate rate(0.1);
-    rate.sleep();
 
     return 0;
 }

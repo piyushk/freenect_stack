@@ -8,8 +8,14 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/freenect_camera</url>
-  <depend package="openni_camera"/>
+
+  <depend package="dynamic_reconfigure"/>
   <depend package="libfreenect"/>
+  <depend package="image_transport" />
+  <depend package="camera_info_manager" />
+  <depend package="nodelet" />
+  <depend package="roscpp" />
+  <depend package="sensor_msgs" />
 
 </package>
 
