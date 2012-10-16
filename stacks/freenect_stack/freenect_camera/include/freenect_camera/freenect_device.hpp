@@ -1,8 +1,13 @@
-#include <freenect/libfreenect.h>
-#include <freenect/libfreenect-registration.h>
+#ifndef FREENECT_DEVICE_T01IELX0
+#define FREENECT_DEVICE_T01IELX0
+
 #include <boost/shared_ptr.hpp>
 #include <boost/noncopyable.hpp>
 #include <stdexcept>
+
+#include <freenect/libfreenect.h>
+#include <freenect/libfreenect-registration.h>
+#include <freenect_camera/image.hpp>
 
 namespace freenect_camera {
 
@@ -16,37 +21,6 @@ namespace freenect_camera {
   static const float WIDTH_SXGA = 1280;
 
   typedef freenect_frame_mode OutputMode;
-
-  class Image {
-    public:
-      static const freenect_video_format BAYER_GRBG = FREENECT_VIDEO_BAYER;
-      static const freenect_video_format YUV422 = FREENECT_VIDEO_YUV_RGB;
-      OutputMode metadata;
-      void* data;
-
-      freenect_video_format getEncoding() const {
-        return metadata.video_format;
-      }
-
-      void fillRaw(unsigned char* image_data) const {
-        memcpy(image_data, data, metadata.bytes);
-      }
-
-      void fillDepthImageRaw(unsigned short* depth_data) const {
-        memcpy(depth_data, data, metadata.bytes);
-      }
-
-      int getHeight() const {
-        return metadata.height;
-      }
-
-      int getWidth() const {
-        return metadata.width;
-      }
-  };
-
-  typedef Image DepthImage;
-  typedef Image IRImage;
 
   class FreenectDevice : public boost::noncopyable {
 
@@ -359,104 +333,6 @@ namespace freenect_camera {
       }
 
   };
-
-  class FreenectDriver {
-
-    public:
-
-      static FreenectDriver& getInstance() {
-        static FreenectDriver instance;
-        return instance;
-      }
-
-      void shutdown() {
-        stop = true;
-        freenect_thread->join();
-        freenect_shutdown(driver_);
-      }
-
-      void updateDeviceList() {
-        device_serials.clear();
-        freenect_device_attributes* attr_list;
-        freenect_device_attributes* item;
-        freenect_list_device_attributes(driver_, &attr_list);
-        for (item = attr_list; item != NULL; item = item->next) {
-          device_serials.push_back(std::string(item->camera_serial));
-        }
-      }
-
-      unsigned getNumberDevices() {
-        return device_serials.size();
-      }
-
-      /** Unsupported */
-      unsigned getBus(unsigned device_idx) {
-        return 0;
-      }
-
-      /** Unsupported */
-      unsigned getAddress(unsigned device_idx) {
-        return 0;
-      }
-
-      const char* getProductName(unsigned device_idx) {
-        return PRODUCT_NAME.c_str();
-      }
-
-      unsigned getProductID(unsigned device_idx) {
-        return PRODUCT_ID;
-      }
-
-      const char* getVendorName(unsigned device_idx) {
-        return VENDOR_NAME.c_str();
-      }
-
-      unsigned getVendorID(unsigned device_idx) {
-        return VENDOR_ID;
-      }
-
-      const char* getSerialNumber(unsigned device_idx) {
-        if (device_idx < getNumberDevices())
-          return device_serials[device_idx].c_str();
-        return UNKNOWN.c_str();
-      }
-
-      boost::shared_ptr<FreenectDevice> getDeviceByIndex(unsigned device_idx) {
-        return getDeviceBySerialNumber(std::string(getSerialNumber(device_idx)));
-      }
-
-      boost::shared_ptr<FreenectDevice> getDeviceBySerialNumber(std::string serial) {
-        boost::shared_ptr<FreenectDevice> device;
-        device.reset(new FreenectDevice(driver_, serial));
-        return device;
-      }
-
-      boost::shared_ptr<FreenectDevice> getDeviceByAddress(unsigned bus, unsigned address) {
-        throw std::runtime_error("freenect_camera does not support searching for device by bus/address");
-      }
-
-      void process() {
-        while (!stop) {
-          freenect_process_events(driver_);
-        }
-      }
-
-    private:
-      FreenectDriver() {
-        freenect_init(&driver_, NULL);
-        freenect_set_log_level(driver_, FREENECT_LOG_NOTICE);
-        // freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
-        freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_CAMERA));
-        // start freenect thread
-        stop = false;
-        freenect_thread.reset(new boost::thread(boost::bind(&FreenectDriver::process, this)));
-      }
-
-      freenect_context* driver_;
-      std::vector<std::string> device_serials;
-      boost::shared_ptr<boost::thread> freenect_thread;
-      bool stop;
-  };
-
 }
 
+#endif /* end of include guard: FREENECT_DEVICE_T01IELX0 */

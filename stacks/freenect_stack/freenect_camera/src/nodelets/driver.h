@@ -50,8 +50,8 @@
 #include <dynamic_reconfigure/server.h>
 #include <freenect_camera/FreenectConfig.h>
 
-// OpenNI
-#include <freenect_camera/freenect_device.hpp>
+// freenect wrapper
+#include <freenect_camera/freenect_driver.hpp>
 
 namespace freenect_camera
 {
