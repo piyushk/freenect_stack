@@ -8,6 +8,7 @@ include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 #  RelWithDebInfo : w/ debug symbols, w/ optimization
 #  MinSizeRel     : w/o debug symbols, w/ optimization, stripped binaries
 #set(ROS_BUILD_TYPE RelWithDebInfo)
+set(ROS_BUILD_TYPE Debug)
 
 rosbuild_init()
 
@@ -35,4 +36,5 @@ gencfg()
 #target_link_libraries(example ${PROJECT_NAME})
 
 rosbuild_add_executable(test1 tests/test1.cpp)
-rosbuild_add_library(openni_nodelet src/nodelets/driver.cpp)
+rosbuild_add_library(freenect_nodelet src/nodelets/driver.cpp)
+rosbuild_add_executable(freenect_camera src/nodes/freenect_node.cpp)

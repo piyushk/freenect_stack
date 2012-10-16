@@ -17,6 +17,12 @@
   <depend package="roscpp" />
   <depend package="sensor_msgs" />
 
+  <export>
+    <cpp cflags="-I${prefix}/include -I/usr/include/freenect -I${prefix}/cfg/cpp"
+         lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lfreenect_nodelet -lfreenect_driver" />
+    <nodelet plugin="${prefix}/freenect_nodelets.xml" />
+  </export>
+
 </package>
 
 

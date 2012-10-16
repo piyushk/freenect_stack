@@ -452,9 +452,15 @@ void DriverNodelet::publishRgbImage(const freenect_camera::Image& image, ros::Ti
     rgb_msg->encoding = sensor_msgs::image_encodings::YUV422;
     rgb_msg->step = image_width_ * 2; // 4 bytes for 2 pixels
   }
+  else 
+  {
+    rgb_msg->encoding = sensor_msgs::image_encodings::RGB8;
+    rgb_msg->step = image_width_ * 3; // 3 bytes for 1 pixels
+  }
   rgb_msg->height = image_height_;
   rgb_msg->width = image_width_;
   rgb_msg->data.resize(rgb_msg->height * rgb_msg->step);
+  //std::cout << "size = " << rgb_msg->height * rgb_msg->step << std::endl;
   
   image.fillRaw(&rgb_msg->data[0]);
   
@@ -685,10 +691,10 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
   }
 
   // Desired dimensions may require decimation from the hardware-compatible ones
-  image_width_  = image_mode.width;
-  image_height_ = image_mode.height;
-  depth_width_  = depth_mode.width;
-  depth_height_ = depth_mode.height;
+  image_width_  = compatible_image_mode.width;
+  image_height_ = compatible_image_mode.height;
+  depth_width_  = compatible_depth_mode.width;
+  depth_height_ = compatible_depth_mode.height;
 
   /// @todo Run connectCb if registration setting changes
   if (device_->isDepthRegistered () && !config.depth_registration)
