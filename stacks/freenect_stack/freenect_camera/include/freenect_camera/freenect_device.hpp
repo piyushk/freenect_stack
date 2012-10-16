@@ -12,7 +12,7 @@ namespace freenect_camera {
   static const unsigned VENDOR_ID = 0x45e;
   static const std::string UNKNOWN = "unknown";
 
-  static const float RGB_FOCAL_LENGTH_SXGA_ = 1050;
+  static const float RGB_FOCAL_LENGTH_SXGA = 1050;
   static const float WIDTH_SXGA = 1280;
 
   typedef freenect_frame_mode OutputMode;
@@ -29,7 +29,6 @@ namespace freenect_camera {
       }
 
       void fillRaw(unsigned char* image_data) const {
-        //std::cout << "size: " << metadata.bytes << std::endl;
         memcpy(image_data, data, metadata.bytes);
       }
 
@@ -282,14 +281,16 @@ namespace freenect_camera {
 
       float getImageFocalLength(unsigned width) {
         float scale = width / WIDTH_SXGA;
-        return RGB_FOCAL_LENGTH_SXGA_ * scale;
+        return RGB_FOCAL_LENGTH_SXGA * scale;
       }
 
       float getDepthFocalLength(unsigned width) {
         float depth_focal_length_sxga = 
           registration_.zero_plane_info.reference_distance /
           registration_.zero_plane_info.reference_pixel_size;
-        float scale = depth_mode_.width / WIDTH_SXGA;
+        float scale = width / WIDTH_SXGA;
+        if (isDepthRegistered()) 
+          return RGB_FOCAL_LENGTH_SXGA * scale;
         return depth_focal_length_sxga * scale;
       }
 
@@ -444,7 +445,8 @@ namespace freenect_camera {
       FreenectDriver() {
         freenect_init(&driver_, NULL);
         freenect_set_log_level(driver_, FREENECT_LOG_NOTICE);
-        freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
+        // freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
+        freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_CAMERA));
         // start freenect thread
         stop = false;
         freenect_thread.reset(new boost::thread(boost::bind(&FreenectDriver::process, this)));

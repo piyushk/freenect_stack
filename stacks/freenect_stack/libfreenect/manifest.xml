@@ -4,7 +4,7 @@
      libfreenect
 
   </description>
-  <author>Hector Martin and others.</author>
+  <author>Hector Martin, Josh Blake, Kyle Machulis and others.</author>
   <license>Apache 2.0</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/libfreenect</url>

@@ -4,7 +4,7 @@
      freenect_camera
 
   </description>
-  <author>Piyush Khandelwal</author>
+  <author>Patrick Mihelich, Suat Gedikli, Radu Bogdan Rusu (original openni_camera driver). Piyush Khandelwal (libfreenect port).</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/freenect_camera</url>

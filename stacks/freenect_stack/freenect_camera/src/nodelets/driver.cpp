@@ -229,7 +229,7 @@ void DriverNodelet::setupDevice ()
       if (!getPrivateNodeHandle().getParam("device_id", device_id))
       {
         NODELET_WARN ("~device_id is not set! Using first device.");
-        device_ = driver.getDeviceByIndex (0);
+        device_ = driver.getDeviceByIndex(0);
       }
       else if (device_id.find ('@') != string::npos)
       {
@@ -241,7 +241,7 @@ void DriverNodelet::setupDevice ()
       }
       else if (device_id[0] == '#')
       {
-        unsigned index = atoi (device_id.c_str () + 1);
+        unsigned index = atoi (device_id.c_str() + 1);
         NODELET_INFO ("Searching for device with index = %d", index);
         device_ = driver.getDeviceByIndex (index - 1);
       }

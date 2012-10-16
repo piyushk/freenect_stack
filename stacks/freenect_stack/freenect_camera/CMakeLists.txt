@@ -37,4 +37,4 @@ gencfg()
 
 rosbuild_add_executable(test1 tests/test1.cpp)
 rosbuild_add_library(freenect_nodelet src/nodelets/driver.cpp)
-rosbuild_add_executable(freenect_camera src/nodes/freenect_node.cpp)
+rosbuild_add_executable(freenect_node src/nodes/freenect_node.cpp)
