@@ -67,7 +67,7 @@ namespace freenect_camera {
         video_mode_.resolution = FREENECT_RESOLUTION_MEDIUM;
         video_mode_.video_format = FREENECT_VIDEO_RGB;
         depth_mode_.resolution = FREENECT_RESOLUTION_MEDIUM;
-        video_mode_.depth_format = FREENECT_DEPTH_MM;
+        depth_mode_.depth_format = FREENECT_DEPTH_MM;
         streaming_video_ = false;
         streaming_depth_ = false;
       }
