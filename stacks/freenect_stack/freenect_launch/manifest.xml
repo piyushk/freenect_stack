@@ -4,12 +4,16 @@
      freenect_launch
 
   </description>
-  <author>Patrick Mihelich (original openni_launch), Piyush Khandelwal (freenect port)</author>
+  <author>Patrick Mihelich (original openni_launch package), Piyush Khandelwal (libfreenect port)</author>
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/freenect_launch</url>
-  <depend package="openni_launch"/>
+
+  <depend package="depth_image_proc"/>
+  <depend package="image_proc"/>
+  <depend package="nodelet"/>
   <depend package="freenect_camera"/>
+  <depend package="tf"/>
 
 </package>
 

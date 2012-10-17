@@ -61,8 +61,8 @@ DriverNodelet::~DriverNodelet ()
 
   // Join Freenect wrapper threads, which call into rgbCb() etc. Those may use device_ methods,
   // so make sure they've finished before destroying device_.
-  // if (device_)
-  //   device_->shutdown();
+  FreenectDriver& driver = FreenectDriver::getInstance ();
+  driver.shutdown();
 
   /// @todo Test watchdog timer for race conditions. May need to use a separate callback queue
   /// controlled by the driver nodelet.
