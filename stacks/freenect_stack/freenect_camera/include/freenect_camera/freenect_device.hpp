@@ -3,6 +3,7 @@
 
 #include <boost/shared_ptr.hpp>
 #include <boost/noncopyable.hpp>
+#include <boost/thread/mutex.hpp>
 #include <stdexcept>
 
 #include <freenect/libfreenect.h>
@@ -24,9 +25,15 @@ namespace freenect_camera {
 
   class FreenectDevice : public boost::noncopyable {
 
+    private:
+
+      typedef boost::lock_guard<boost::mutex> LockGuard;
+
     public:
 
       FreenectDevice(freenect_context* driver, std::string serial) {
+        LockGuard depth_lock(m_depth_);
+        LockGuard video_lock(m_video_);
         if (freenect_open_device_by_camera_serial(driver, &device_, serial.c_str()) < 0) {
           throw std::runtime_error("Unable to open specified kinect");
         }
@@ -37,15 +44,17 @@ namespace freenect_camera {
         registration_ = freenect_copy_registration(device_);
 
         //Initialize default variables
-        video_mode_.resolution = FREENECT_RESOLUTION_MEDIUM;
+        video_mode_.resolution = FREENECT_RESOLUTION_LOW;
         video_mode_.video_format = FREENECT_VIDEO_RGB;
-        depth_mode_.resolution = FREENECT_RESOLUTION_MEDIUM;
+        depth_mode_.resolution = FREENECT_RESOLUTION_LOW;
         depth_mode_.depth_format = FREENECT_DEPTH_MM;
         streaming_video_ = false;
         streaming_depth_ = false;
       }
 
       ~FreenectDevice() {
+        LockGuard depth_lock(m_depth_);
+        LockGuard video_lock(m_video_);
         freenect_close_device(device_);
         freenect_destroy_registration(&registration_);
       }
@@ -80,16 +89,31 @@ namespace freenect_camera {
         ir_callback_ = boost::bind(callback, boost::ref(instance), _1, cookie);
       }
 
-      bool isImageStreamRunning() {
+      bool _isImageStreamRunning() {
         return streaming_video_ && _isImageModeEnabled();
       }
 
-      bool isIRStreamRunning() {
+      bool _isIRStreamRunning() {
         return streaming_video_ && !_isImageModeEnabled();
       }
 
-      bool isDepthStreamRunning() {
+      bool _isDepthStreamRunning() {
         return streaming_depth_;
+      }
+
+      bool isImageStreamRunning() {
+        LockGuard video_lock(m_video_);
+        return _isImageStreamRunning();
+      }
+
+      bool isIRStreamRunning() {
+        LockGuard video_lock(m_video_);
+        return _isIRStreamRunning();
+      }
+
+      bool isDepthStreamRunning() {
+        LockGuard depth_lock(m_depth_);
+        return _isDepthStreamRunning();
       }
 
       bool hasImageStream() {
@@ -134,35 +158,41 @@ namespace freenect_camera {
       }
 
       void stopImageStream() {
+        LockGuard video_lock(m_video_);
         if (_isImageModeEnabled()) {
           _stopVideoStream();
         }
       }
 
       void startImageStream() {
+        LockGuard video_lock(m_video_);
         freenect_frame_mode mode = video_mode_;
         mode.video_format = FREENECT_VIDEO_RGB;
         _startVideoStream(mode);
       }
 
       void stopIRStream() {
+        LockGuard video_lock(m_video_);
         if (!_isImageModeEnabled()) {
           _stopVideoStream();
         }
       }
 
       void startIRStream() {
+        LockGuard video_lock(m_video_);
         freenect_frame_mode mode = video_mode_;
         mode.video_format = FREENECT_VIDEO_IR_8BIT;
         _startVideoStream(mode);
       }
 
       void stopDepthStream() {
+        LockGuard depth_lock(m_depth_);
         streaming_depth_ = false;
         freenect_stop_depth(device_);
       }
 
       void startDepthStream() {
+        LockGuard depth_lock(m_depth_);
         streaming_depth_ = true;
         freenect_frame_mode mode = 
           freenect_find_depth_mode(depth_mode_.resolution, depth_mode_.depth_format);
@@ -172,12 +202,14 @@ namespace freenect_camera {
       }
 
       OutputMode getImageOutputMode() {
+        LockGuard video_lock(m_video_);
         return video_mode_;
       }
 
       void setImageOutputMode(OutputMode mode) {
+        LockGuard video_lock(m_video_);
         bool restartVideoStream = false;
-        if (isImageStreamRunning() || isIRStreamRunning()) {
+        if (_isImageStreamRunning() || _isIRStreamRunning()) {
           _stopVideoStream();
           restartVideoStream = true;
         }
@@ -189,7 +221,7 @@ namespace freenect_camera {
 
       OutputMode getDefaultImageMode() {
         OutputMode mode;
-        mode.resolution = FREENECT_RESOLUTION_MEDIUM;
+        mode.resolution = FREENECT_RESOLUTION_LOW;
         return mode;
       }
 
@@ -203,12 +235,14 @@ namespace freenect_camera {
       }
 
       OutputMode getDepthOutputMode() {
+        LockGuard depth_lock(m_depth_);
         return depth_mode_;
       }
 
       void setDepthOutputMode(OutputMode mode) {
+        LockGuard depth_lock(m_depth_);
         bool restartDepthMode = false;
-        if (isDepthStreamRunning()) {
+        if (_isDepthStreamRunning()) {
           _stopVideoStream();
           restartDepthMode = true;
         }
@@ -220,7 +254,7 @@ namespace freenect_camera {
 
       OutputMode getDefaultDepthMode() {
         OutputMode mode;
-        mode.resolution = FREENECT_RESOLUTION_MEDIUM;
+        mode.resolution = FREENECT_RESOLUTION_LOW;
         return mode;
       }
 
@@ -234,12 +268,14 @@ namespace freenect_camera {
       }
 
       bool isDepthRegistered() {
+        LockGuard depth_lock(m_depth_);
         return depth_mode_.depth_format == FREENECT_DEPTH_REGISTERED;
       }
 
       void setDepthRegistration(bool enable) {
+        LockGuard depth_lock(m_depth_);
         bool restartDepthStream = false;
-        if (isDepthStreamRunning()) {
+        if (_isDepthStreamRunning()) {
           stopDepthStream();
           restartDepthStream = true;
         }
@@ -280,7 +316,7 @@ namespace freenect_camera {
 
       static void freenectVideoCallback(freenect_device *dev, void *video, uint32_t timestamp) {
         FreenectDevice* device = static_cast<FreenectDevice*>(freenect_get_user(dev));
-        if (device->isImageStreamRunning()) {
+        if (device->_isImageStreamRunning()) {
           boost::shared_ptr<Image> image_ptr = _getImage(device, video);
           device->image_callback_.operator()(image_ptr);
         } else {
@@ -303,6 +339,10 @@ namespace freenect_camera {
 
       bool streaming_video_;
       bool streaming_depth_;
+
+      boost::mutex m_video_; // prevents changing video settings in an unsafe manner
+      boost::mutex m_depth_; // prevents changing depth settings in an unsafe manner
+      
 
       bool _isImageModeEnabled() {
         return video_mode_.video_format == FREENECT_VIDEO_RGB;
