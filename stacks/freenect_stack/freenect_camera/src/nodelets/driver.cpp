@@ -61,6 +61,10 @@ DriverNodelet::~DriverNodelet ()
 
   // Join Freenect wrapper threads, which call into rgbCb() etc. Those may use device_ methods,
   // so make sure they've finished before destroying device_.
+  if (device_) {
+    device_->shutdown();
+  }
+
   FreenectDriver& driver = FreenectDriver::getInstance ();
   driver.shutdown();
 
@@ -637,42 +641,46 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
   z_offset_mm_ = config.z_offset_mm;
 
   OutputMode old_depth_mode = device_->getDepthOutputMode ();
+  OutputMode old_image_mode = device_->getImageOutputMode ();
+
+  OutputMode compatible_depth_mode = old_depth_mode;
+  OutputMode compatible_image_mode = old_image_mode;
   
   // We need this for the ASUS Xtion Pro
-  OutputMode old_image_mode = old_depth_mode, image_mode, compatible_image_mode;
-  if (device_->hasImageStream ())
-  {
-    old_image_mode = device_->getImageOutputMode ();
-     
-    // does the device support the new image mode?
-    image_mode = mapConfigMode2OutputMode (config.image_mode);
+  // OutputMode old_image_mode = old_depth_mode, image_mode, compatible_image_mode;
+  // if (device_->hasImageStream ())
+  // {
+  //   old_image_mode = device_->getImageOutputMode ();
+  //    
+  //   // does the device support the new image mode?
+  //   image_mode = mapConfigMode2OutputMode (config.image_mode);
 
-    if (!device_->findCompatibleImageMode (image_mode, compatible_image_mode))
-    {
-      OutputMode default_mode = device_->getDefaultImageMode();
-      NODELET_WARN("Could not find any compatible image output mode for %d."
-                   "Falling back to default image output mode %d.",
-                    image_mode.resolution,
-                    default_mode.resolution);
+  //   if (!device_->findCompatibleImageMode (image_mode, compatible_image_mode))
+  //   {
+  //     OutputMode default_mode = device_->getDefaultImageMode();
+  //     NODELET_WARN("Could not find any compatible image output mode for %d."
+  //                  "Falling back to default image output mode %d.",
+  //                   image_mode.resolution,
+  //                   default_mode.resolution);
 
-      config.image_mode = mapMode2ConfigMode(default_mode);
-      image_mode = compatible_image_mode = default_mode;
-    }
-  }
-  
-  OutputMode depth_mode, compatible_depth_mode;
-  depth_mode = mapConfigMode2OutputMode (config.depth_mode);
-  if (!device_->findCompatibleDepthMode (depth_mode, compatible_depth_mode))
-  {
-    OutputMode default_mode = device_->getDefaultDepthMode();
-    NODELET_WARN("Could not find any compatible depth output mode for %d."
-                 "Falling back to default depth output mode %d.",
-                  depth_mode.resolution,
-                  default_mode.resolution);
-    
-    config.depth_mode = mapMode2ConfigMode(default_mode);
-    depth_mode = compatible_depth_mode = default_mode;
-  }
+  //     config.image_mode = mapMode2ConfigMode(default_mode);
+  //     image_mode = compatible_image_mode = default_mode;
+  //   }
+  // }
+  // 
+  // OutputMode depth_mode, compatible_depth_mode;
+  // depth_mode = mapConfigMode2OutputMode (config.depth_mode);
+  // if (!device_->findCompatibleDepthMode (depth_mode, compatible_depth_mode))
+  // {
+  //   OutputMode default_mode = device_->getDefaultDepthMode();
+  //   NODELET_WARN("Could not find any compatible depth output mode for %d."
+  //                "Falling back to default depth output mode %d.",
+  //                 depth_mode.resolution,
+  //                 default_mode.resolution);
+  //   
+  //   config.depth_mode = mapMode2ConfigMode(default_mode);
+  //   depth_mode = compatible_depth_mode = default_mode;
+  // }
 
   // here everything is fine. Now make the changes
   if ( (device_->hasImageStream () && compatible_image_mode != old_image_mode) ||
@@ -735,25 +743,12 @@ void DriverNodelet::updateModeMaps ()
   OutputMode output_mode;
 
   output_mode.resolution = FREENECT_RESOLUTION_HIGH;
-  mode2config_map_[output_mode] = Freenect_SXGA_15Hz;
-  config2mode_map_[Freenect_SXGA_15Hz] = output_mode;
+  mode2config_map_[output_mode] = Freenect_SXGA;
+  config2mode_map_[Freenect_SXGA] = output_mode;
 
   output_mode.resolution = FREENECT_RESOLUTION_MEDIUM;
-  mode2config_map_[output_mode] = Freenect_VGA_30Hz;
-  config2mode_map_[Freenect_VGA_25Hz] = output_mode;
-  config2mode_map_[Freenect_VGA_30Hz] = output_mode;
-
-  output_mode.resolution = FREENECT_RESOLUTION_LOW;
-  mode2config_map_[output_mode] = Freenect_QVGA_30Hz;
-  config2mode_map_[Freenect_QVGA_25Hz] = output_mode;
-  config2mode_map_[Freenect_QVGA_30Hz] = output_mode;
-  config2mode_map_[Freenect_QVGA_60Hz] = output_mode;
-
-  output_mode.resolution = FREENECT_RESOLUTION_DUMMY;
-  mode2config_map_[output_mode] = Freenect_QVGA_30Hz; //shouldn't be using this output mode anyway
-  config2mode_map_[Freenect_QQVGA_25Hz] = output_mode;
-  config2mode_map_[Freenect_QQVGA_30Hz] = output_mode;
-  config2mode_map_[Freenect_QQVGA_60Hz] = output_mode;
+  mode2config_map_[output_mode] = Freenect_VGA;
+  config2mode_map_[Freenect_VGA] = output_mode;
 }
 
 int DriverNodelet::mapMode2ConfigMode (const OutputMode& output_mode) const

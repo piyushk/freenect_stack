@@ -29,6 +29,7 @@ namespace freenect_camera {
         for (item = attr_list; item != NULL; item = item->next) {
           device_serials.push_back(std::string(item->camera_serial));
         }
+        freenect_free_device_attributes(attr_list);
       }
 
       unsigned getNumberDevices() {
@@ -82,8 +83,14 @@ namespace freenect_camera {
       }
 
       void process() {
-        while (!stop) {
-          freenect_process_events(driver_);
+        bool finish = stop;
+        while (!finish) {
+          timeval t;
+          t.tv_sec = 0;
+          t.tv_usec = 10000;
+          if (freenect_process_events_timeout(driver_, &t) < 0)
+            throw std::runtime_error("freenect_process_events error");
+          finish = stop;
         }
       }
 
