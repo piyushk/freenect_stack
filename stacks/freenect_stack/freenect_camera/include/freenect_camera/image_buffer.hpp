@@ -175,6 +175,7 @@ namespace freenect_camera {
       case FREENECT_DEPTH_REGISTERED:
         buffer.focal_length = getRGBFocalLength(buffer.metadata.width);
         buffer.is_registered = true;
+        break;
       default:
         throw std::runtime_error("libfreenect: shouldn't reach here");
     }

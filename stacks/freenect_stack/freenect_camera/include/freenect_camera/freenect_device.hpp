@@ -316,9 +316,9 @@ namespace freenect_camera {
               allocateBufferVideo(video_buffer_, new_video_format_, 
                  new_video_resolution_, registration_);
             } catch (std::runtime_error& e) {
-              printf("[ERROR] Unsupported video format/resolution provided. %s",
+              printf("[ERROR] Unsupported video format/resolution provided. %s\n",
                   e.what());
-              printf("[INFO] Setting default settings (RGB/VGA)");
+              printf("[INFO] Setting default settings (RGB/VGA)\n");
               allocateBufferVideo(video_buffer_, FREENECT_VIDEO_RGB,
                   FREENECT_RESOLUTION_MEDIUM, registration_);
             }
@@ -348,9 +348,9 @@ namespace freenect_camera {
               allocateBufferDepth(depth_buffer_, new_depth_format_, 
                  new_depth_resolution_, registration_);
             } catch (std::runtime_error& e) {
-              printf("[ERROR] Unsupported depth format/resolution provided. %s",
+              printf("[ERROR] Unsupported depth format/resolution provided. %s\n",
                   e.what());
-              printf("[INFO] Setting default settings (depth registered/VGA)");
+              printf("[INFO] Setting default settings (depth registered/VGA)\n");
               allocateBufferDepth(depth_buffer_, FREENECT_DEPTH_MM,
                   FREENECT_RESOLUTION_MEDIUM, registration_);
             }

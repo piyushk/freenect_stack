@@ -91,7 +91,7 @@ void DriverNodelet::onInitImpl ()
   publish_rgb_ = publish_ir_ = publish_depth_ = true;
 
   // Initialize the sensor, but don't start any streams yet. That happens in the connection callbacks.
-  /* updateModeMaps(); */
+  updateModeMaps();
   setupDevice();
 
   // Initialize dynamic reconfigure
@@ -465,7 +465,7 @@ void DriverNodelet::publishRgbImage(const ImageBuffer& image, ros::Time time) co
 void DriverNodelet::publishDepthImage(const ImageBuffer& depth, ros::Time time) const
 {
   bool registered = depth.is_registered;
-  
+
   sensor_msgs::ImagePtr depth_msg = boost::make_shared<sensor_msgs::Image>();
   depth_msg->header.stamp    = time;
   depth_msg->encoding        = sensor_msgs::image_encodings::TYPE_16UC1;
