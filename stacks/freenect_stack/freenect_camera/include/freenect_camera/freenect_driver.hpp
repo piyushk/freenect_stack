@@ -16,8 +16,11 @@ namespace freenect_camera {
       }
 
       void shutdown() {
-        stop = true;
+        thread_running = false;
         freenect_thread->join();
+
+        if (*device_)
+          device_->shutdown();
         freenect_shutdown(driver_);
       }
 
@@ -65,7 +68,7 @@ namespace freenect_camera {
       const char* getSerialNumber(unsigned device_idx) {
         if (device_idx < getNumberDevices())
           return device_serials[device_idx].c_str();
-        return UNKNOWN.c_str();
+        throw std::runtime_error("libfreenect: device idx out of range"); 
       }
 
       boost::shared_ptr<FreenectDevice> getDeviceByIndex(unsigned device_idx) {
@@ -73,8 +76,10 @@ namespace freenect_camera {
       }
 
       boost::shared_ptr<FreenectDevice> getDeviceBySerialNumber(std::string serial) {
-        boost::shared_ptr<FreenectDevice> device;
-        device.reset(new FreenectDevice(driver_, serial));
+        device_.reset(new FreenectDevice(driver_, serial));
+        // start freenect thread now that we have device
+        thread_running = true;
+        freenect_thread_.reset(new boost::thread(boost::bind(&FreenectDriver::process, this)));
         return device;
       }
 
@@ -83,14 +88,14 @@ namespace freenect_camera {
       }
 
       void process() {
-        bool finish = stop;
-        while (!finish) {
+        while (thread_running) {
           timeval t;
           t.tv_sec = 0;
           t.tv_usec = 10000;
           if (freenect_process_events_timeout(driver_, &t) < 0)
             throw std::runtime_error("freenect_process_events error");
-          finish = stop;
+          if (*device_)
+            device_->executeChanges();
         }
       }
 
@@ -98,17 +103,16 @@ namespace freenect_camera {
       FreenectDriver() {
         freenect_init(&driver_, NULL);
         freenect_set_log_level(driver_, FREENECT_LOG_NOTICE);
-        // freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
-        freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_CAMERA));
-        // start freenect thread
-        stop = false;
-        freenect_thread.reset(new boost::thread(boost::bind(&FreenectDriver::process, this)));
+        freenect_select_subdevices(driver_, (freenect_device_flags)(FREENECT_DEVICE_MOTOR | FREENECT_DEVICE_CAMERA));
+        thread_running = false;
       }
 
       freenect_context* driver_;
-      std::vector<std::string> device_serials;
-      boost::shared_ptr<boost::thread> freenect_thread;
-      bool stop;
+      std::vector<std::string> device_serials_;
+      boost::shared_ptr<boost::thread> freenect_thread_;
+      boost::shared_ptr<FreenectDevice> device_;
+
+      bool thread_running;
   };
 
 }

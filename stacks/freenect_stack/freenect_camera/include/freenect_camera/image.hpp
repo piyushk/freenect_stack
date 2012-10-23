@@ -5,10 +5,16 @@
 
 namespace freenect_camera {
 
+  static const float RGB_FOCAL_LENGTH_SXGA = 1050;
+  static const float WIDTH_SXGA = 1280;
+
   class Image {
+
     public:
+      static const freenect_video_format RAW = FREENECT_VIDEO_RGB;
       static const freenect_video_format BAYER_GRBG = FREENECT_VIDEO_BAYER;
       static const freenect_video_format YUV422 = FREENECT_VIDEO_YUV_RGB;
+
       freenect_frame_mode metadata;
       void* data;
 

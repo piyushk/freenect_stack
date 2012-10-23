@@ -121,6 +121,11 @@ namespace freenect_camera
       double depth_ir_offset_y_;
       int z_offset_mm_;
 
+      // initial device setup information
+      bool depth_registration_;
+      int image_mode_;
+      int depth_mode_;
+
       /// @todo Prefer binning to changing width/height
       unsigned image_width_;
       unsigned image_height_;

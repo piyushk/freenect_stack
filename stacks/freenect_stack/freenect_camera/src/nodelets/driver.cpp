@@ -99,8 +99,13 @@ void DriverNodelet::onInitImpl ()
   rgb_frame_counter_ = depth_frame_counter_ = ir_frame_counter_ = 0;
   publish_rgb_ = publish_ir_ = publish_depth_ = true;
 
+  // Get some device related parameters
+  param_nh.param("depth_registration", depth_registration_, true);
+  param_nh.param("image_mode", image_mode_, FREENECT_RESOLUTION_MEDIUM);
+  param_nh.param("depth_mode", depth_mode_, FREENECT_RESOLUTION_MEDIUM);
+
   // Initialize the sensor, but don't start any streams yet. That happens in the connection callbacks.
-  updateModeMaps();
+  /* updateModeMaps(); */
   setupDevice();
 
   // Initialize dynamic reconfigure
@@ -206,7 +211,7 @@ void DriverNodelet::onInitImpl ()
 void DriverNodelet::setupDevice ()
 {
   // Initialize the openni device
-  FreenectDriver& driver = FreenectDriver::getInstance ();
+  FreenectDriver& driver = FreenectDriver::getInstance(depth_registration_, image_mode_, depth_mode_);
 
   do {
     driver.updateDeviceList ();
@@ -705,14 +710,14 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
   depth_height_ = compatible_depth_mode.height;
 
   /// @todo Run connectCb if registration setting changes
-  if (device_->isDepthRegistered () && !config.depth_registration)
-  {
-    device_->setDepthRegistration (false);
-  }
-  else if (!device_->isDepthRegistered () && config.depth_registration)
-  {
-    device_->setDepthRegistration (true);
-  }
+  // if (device_->isDepthRegistered () && !config.depth_registration)
+  // {
+  //   device_->setDepthRegistration (false);
+  // }
+  // else if (!device_->isDepthRegistered () && config.depth_registration)
+  // {
+  //   device_->setDepthRegistration (true);
+  // }
 
   // now we can copy
   config_ = config;
@@ -738,43 +743,43 @@ void DriverNodelet::stopSynchronization()
   }
 }
 
-void DriverNodelet::updateModeMaps ()
-{
-  OutputMode output_mode;
+// void DriverNodelet::updateModeMaps ()
+// {
+//   OutputMode output_mode;
+// 
+//   output_mode.resolution = FREENECT_RESOLUTION_HIGH;
+//   mode2config_map_[output_mode] = Freenect_SXGA;
+//   config2mode_map_[Freenect_SXGA] = output_mode;
+// 
+//   output_mode.resolution = FREENECT_RESOLUTION_MEDIUM;
+//   mode2config_map_[output_mode] = Freenect_VGA;
+//   config2mode_map_[Freenect_VGA] = output_mode;
+// }
 
-  output_mode.resolution = FREENECT_RESOLUTION_HIGH;
-  mode2config_map_[output_mode] = Freenect_SXGA;
-  config2mode_map_[Freenect_SXGA] = output_mode;
-
-  output_mode.resolution = FREENECT_RESOLUTION_MEDIUM;
-  mode2config_map_[output_mode] = Freenect_VGA;
-  config2mode_map_[Freenect_VGA] = output_mode;
-}
-
-int DriverNodelet::mapMode2ConfigMode (const OutputMode& output_mode) const
-{
-  std::map<OutputMode, int, modeComp>::const_iterator it = mode2config_map_.find (output_mode);
-
-  if (it == mode2config_map_.end ())
-  {
-    NODELET_ERROR ("mode not be found");
-    exit (-1);
-  }
-  else
-    return it->second;
-}
-
-OutputMode DriverNodelet::mapConfigMode2OutputMode (int mode) const
-{
-  std::map<int, OutputMode>::const_iterator it = config2mode_map_.find (mode);
-  if (it == config2mode_map_.end ())
-  {
-    NODELET_ERROR ("mode %d could not be found", mode);
-    exit (-1);
-  }
-  else
-    return it->second;
-}
+// int DriverNodelet::mapMode2ConfigMode (const OutputMode& output_mode) const
+// {
+//   std::map<OutputMode, int, modeComp>::const_iterator it = mode2config_map_.find (output_mode);
+// 
+//   if (it == mode2config_map_.end ())
+//   {
+//     NODELET_ERROR ("mode not be found");
+//     exit (-1);
+//   }
+//   else
+//     return it->second;
+// }
+// 
+// OutputMode DriverNodelet::mapConfigMode2OutputMode (int mode) const
+// {
+//   std::map<int, OutputMode>::const_iterator it = config2mode_map_.find (mode);
+//   if (it == config2mode_map_.end ())
+//   {
+//     NODELET_ERROR ("mode %d could not be found", mode);
+//     exit (-1);
+//   }
+//   else
+//     return it->second;
+// }
 
 void DriverNodelet::watchDog (const ros::TimerEvent& event)
 {
