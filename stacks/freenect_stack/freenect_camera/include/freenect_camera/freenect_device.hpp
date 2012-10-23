@@ -20,7 +20,7 @@ namespace freenect_camera {
   typedef freenect_resolution OutputMode;
 
   bool isImageMode(const ImageBuffer& buffer) {
-    return buffer.metadata.video_format == FREENECT_VIDEO_RGB;
+    return buffer.metadata.video_format == FREENECT_VIDEO_BAYER;
   }
 
   class FreenectDriver;
@@ -42,7 +42,7 @@ namespace freenect_camera {
         //Initialize default variables
         streaming_video_ = should_stream_video_ = false;
         new_video_resolution_ = getDefaultImageMode();
-        new_video_format_ = FREENECT_VIDEO_RGB;
+        new_video_format_ = FREENECT_VIDEO_BAYER;
         video_buffer_.metadata.resolution = FREENECT_RESOLUTION_DUMMY;
         video_buffer_.metadata.video_format = FREENECT_VIDEO_DUMMY;
 
@@ -172,7 +172,7 @@ namespace freenect_camera {
 
       void startImageStream() {
         boost::lock_guard<boost::recursive_mutex> lock(m_settings_);
-        new_video_format_ = FREENECT_VIDEO_RGB;
+        new_video_format_ = FREENECT_VIDEO_BAYER;
         should_stream_video_ = true;
       }
 
@@ -319,7 +319,7 @@ namespace freenect_camera {
               printf("[ERROR] Unsupported video format/resolution provided. %s\n",
                   e.what());
               printf("[INFO] Setting default settings (RGB/VGA)\n");
-              allocateBufferVideo(video_buffer_, FREENECT_VIDEO_RGB,
+              allocateBufferVideo(video_buffer_, FREENECT_VIDEO_BAYER,
                   FREENECT_RESOLUTION_MEDIUM, registration_);
             }
             freenect_set_video_mode(device_, video_buffer_.metadata);
