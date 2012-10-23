@@ -109,6 +109,7 @@ namespace freenect_camera {
       case FREENECT_VIDEO_IR_10BIT_PACKED:
         buffer.focal_length = getDepthFocalLength(registration, 
             buffer.metadata.width);
+        break;
       default:
         throw std::runtime_error("libfreenect: shouldn't reach here");
     }

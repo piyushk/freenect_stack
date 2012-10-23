@@ -324,6 +324,8 @@ namespace freenect_camera {
             }
             freenect_set_video_mode(device_, video_buffer_.metadata);
             freenect_set_video_buffer(device_, video_buffer_.image_buffer.get());
+            new_video_resolution_ = video_buffer_.metadata.resolution;
+            new_video_format_ = video_buffer_.metadata.video_format;
           }
           // Restart stream if required
           if (should_stream_video_) {
@@ -356,6 +358,8 @@ namespace freenect_camera {
             }
             freenect_set_depth_mode(device_, depth_buffer_.metadata);
             freenect_set_depth_buffer(device_, depth_buffer_.image_buffer.get());
+            new_depth_resolution_ = depth_buffer_.metadata.resolution;
+            new_depth_format_ = depth_buffer_.metadata.depth_format;
           }
           // Restart stream if required
           if (should_stream_depth_) {
