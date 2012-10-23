@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <boost/thread/mutex.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <freenect/libfreenect.hpp>
 
@@ -24,138 +25,9 @@ namespace freenect_camera {
     int valid;
     freenect_frame_mode metadata;
     float focal_length;
-    float baseline;
+    bool is_registered;
   };
 
-  /**
-   * Reallocate the video buffer if the video format or resolution changes
-   */
-  void allocateBufferVideo(
-      boost::shared_ptr<ImageBuffer>& buffer,
-      const freenect_video_format& format,
-      const freenect_resolution& resolution,
-      const freenect_registration& registration) {
-
-    // Obtain a lock on the buffer. This is mostly for debugging, as allocate
-    // buffer should only be called when the buffer is not being used by the
-    // freenect thread
-    boost::lock_guard<boost::mutex> buffer_lock(buffer->lock);
-
-    // Deallocate the buffer incase an exception happens (the buffer should no
-    // longer be valid)
-    buffer->image_buffer.reset();
-
-    switch (format) {
-      case FREENECT_VIDEO_RGB:
-      case FREENECT_VIDEO_BAYER:
-      case FREENECT_VIDEO_YUV_RGB:
-      case FREENECT_VIDEO_IR_8BIT:
-      case FREENECT_VIDEO_IR_10BIT:
-      case FREENECT_VIDEO_IR_10BIT_PACKED:
-        switch (resolution) {
-          case FREENECT_RESOLUTION_HIGH:
-          case FREENECT_RESOLUTION_MEDIUM:
-            buffer->metadata = 
-              freenect_find_video_mode(resolution, format);
-            if (!buffer->metadata.is_valid) {
-              throw std::runtime_error(
-                  "libfreenect: Invalid video fmt, res: %d,%d", 
-                  format, resolution);
-            }
-            break;
-          default:
-            throw std::runtime_error(
-                "libfreenect: Invalid video resolution: %d", resolution);
-        }
-        break;
-      default:
-        throw std::runtime_error("Invalid video format: %d\n", format);
-    }
-
-    // All is good, reallocate the buffer and calculate other pieces of info
-    buffer->image_buffer.reset(new unsigned char[buffer->metadata.bytes]);
-    switch(format) {
-      case FREENECT_VIDEO_RGB:
-      case FREENECT_VIDEO_BAYER:
-      case FREENECT_VIDEO_YUV_RGB:
-        buffer->focal_length = getRGBFocalLength(buffer->metadata.width);
-        break;
-      case FREENECT_VIDEO_IR_8BIT:
-      case FREENECT_VIDEO_IR_10BIT:
-      case FREENECT_VIDEO_IR_10BIT_PACKED:
-        buffer->focal_length = getDepthFocalLength(registration, 
-            buffer->metadata.width);
-    }
-    buffer->baseline = getBaseline(registration);
-  }
-
-  /**
-   * Reallocate the depth buffer if the depth format or resolution changes
-   */
-  void allocateBufferDepth(boost::shared_ptr<ImageBuffer>& buffer,
-      const freenect_depth_format& format,
-      const freenect_resolution& resolution,
-      const freenect_registration& registration) {
-
-    // Obtain a lock on the buffer. This is mostly for debugging, as allocate
-    // buffer should only be called when the buffer is not being used by the
-    // freenect thread
-    boost::lock_guard<boost::mutex> buffer_lock(buffer->lock);
-
-    // Deallocate the buffer incase an exception happens (the buffer should no
-    // longer be valid)
-    buffer->image_buffer.reset();
-
-    switch (format) {
-      case FREENECT_DEPTH_11BIT:
-      case FREENECT_DEPTH_10BIT:
-      case FREENECT_DEPTH_11BIT_PACKED:
-      case FREENECT_DEPTH_10BIT_PACKED:
-      case FREENECT_DEPTH_REGISTERED:
-      case FREENECT_DEPTH_MM:
-        switch (resolution) {
-          case FREENECT_RESOLUTION_MEDIUM:
-            buffer->metadata = 
-              freenect_find_depth_mode(resolution, format);
-            if (!buffer->metadata.is_valid) {
-              throw std::runtime_error(
-                  "libfreenect: Invalid depth fmt, res: %d,%d", 
-                  format, resolution);
-            }
-            break;
-          default:
-            throw std::runtime_error(
-                "libfreenect: Invalid depth resolution: %d", resolution);
-        }
-        break;
-      default:
-        throw std::runtime_error(
-            "libfreenect: Invalid depth format: %d\n", format);
-    }
-
-    // All is good, reallocate the buffer and calculate other pieces of info
-    buffer->image_buffer.reset(new unsigned char[buffer->metadata.bytes]);
-    switch(format) {
-      case FREENECT_DEPTH_11BIT:
-      case FREENECT_DEPTH_10BIT:
-      case FREENECT_DEPTH_11BIT_PACKED:
-      case FREENECT_DEPTH_10BIT_PACKED:
-      case FREENECT_DEPTH_MM:
-        buffer->focal_length = 
-          getDepthFocalLength(registration, buffer->metadata.width);
-        break;
-		case FREENECT_DEPTH_REGISTERED:
-        buffer->focal_length = getRGBFocalLength(buffer->metadata.width);
-    }
-    buffer->baseline = getBaseline(registration);
-  }
-
-  /**
-   * Get the baseline (distance between rgb/depth sensor)
-   */
-  float getBaseline(const freenect_registration& registration) {
-    return 0.01 * registration.zero_plane_info.dcmos_emitter_dist;
-  }
   
   /**
    * Get RGB Focal length in pixels 
@@ -178,8 +50,138 @@ namespace freenect_camera {
     return depth_focal_length_sxga * scale;
   }
 
-  void fillImage(const boost::shared_ptr<ImageBuffer>& buffer, void* data) {
-    memcpy(data, buffer->image_buffer.get(), buffer->metadata.bytes);
+  /**
+   * Reallocate the video buffer if the video format or resolution changes
+   */
+  void allocateBufferVideo(
+      ImageBuffer& buffer,
+      const freenect_video_format& format,
+      const freenect_resolution& resolution,
+      const freenect_registration& registration) {
+
+    // Obtain a lock on the buffer. This is mostly for debugging, as allocate
+    // buffer should only be called when the buffer is not being used by the
+    // freenect thread
+    boost::lock_guard<boost::mutex> buffer_lock(buffer.mutex);
+
+    // Deallocate the buffer incase an exception happens (the buffer should no
+    // longer be valid)
+    buffer.image_buffer.reset();
+
+    switch (format) {
+      case FREENECT_VIDEO_RGB:
+      case FREENECT_VIDEO_BAYER:
+      case FREENECT_VIDEO_YUV_RGB:
+      case FREENECT_VIDEO_IR_8BIT:
+      case FREENECT_VIDEO_IR_10BIT:
+      case FREENECT_VIDEO_IR_10BIT_PACKED:
+        switch (resolution) {
+          case FREENECT_RESOLUTION_HIGH:
+          case FREENECT_RESOLUTION_MEDIUM:
+            buffer.metadata = 
+              freenect_find_video_mode(resolution, format);
+            if (!buffer.metadata.is_valid) {
+              throw std::runtime_error("libfreenect: Invalid video fmt, res: " + 
+                  boost::lexical_cast<std::string>(format) + "," +
+                  boost::lexical_cast<std::string>(resolution));
+            }
+            break;
+          default:
+            throw std::runtime_error("libfreenect: Invalid video resolution: " +
+                boost::lexical_cast<std::string>(resolution));
+        }
+        break;
+      default:
+        throw std::runtime_error("libfreenect: Invalid video format: " +
+            boost::lexical_cast<std::string>(format));
+    }
+
+    // All is good, reallocate the buffer and calculate other pieces of info
+    buffer.image_buffer.reset(new unsigned char[buffer.metadata.bytes]);
+    switch(format) {
+      case FREENECT_VIDEO_RGB:
+      case FREENECT_VIDEO_BAYER:
+      case FREENECT_VIDEO_YUV_RGB:
+        buffer.focal_length = getRGBFocalLength(buffer.metadata.width);
+        break;
+      case FREENECT_VIDEO_IR_8BIT:
+      case FREENECT_VIDEO_IR_10BIT:
+      case FREENECT_VIDEO_IR_10BIT_PACKED:
+        buffer.focal_length = getDepthFocalLength(registration, 
+            buffer.metadata.width);
+      default:
+        throw std::runtime_error("libfreenect: shouldn't reach here");
+    }
+    buffer.is_registered = false;
+  }
+
+  /**
+   * Reallocate the depth buffer if the depth format or resolution changes
+   */
+  void allocateBufferDepth(
+      ImageBuffer& buffer,
+      const freenect_depth_format& format,
+      const freenect_resolution& resolution,
+      const freenect_registration& registration) {
+
+    // Obtain a lock on the buffer. This is mostly for debugging, as allocate
+    // buffer should only be called when the buffer is not being used by the
+    // freenect thread
+    boost::lock_guard<boost::mutex> buffer_lock(buffer.mutex);
+
+    // Deallocate the buffer incase an exception happens (the buffer should no
+    // longer be valid)
+    buffer.image_buffer.reset();
+
+    switch (format) {
+      case FREENECT_DEPTH_11BIT:
+      case FREENECT_DEPTH_10BIT:
+      case FREENECT_DEPTH_11BIT_PACKED:
+      case FREENECT_DEPTH_10BIT_PACKED:
+      case FREENECT_DEPTH_REGISTERED:
+      case FREENECT_DEPTH_MM:
+        switch (resolution) {
+          case FREENECT_RESOLUTION_MEDIUM:
+            buffer.metadata = 
+              freenect_find_depth_mode(resolution, format);
+            if (!buffer.metadata.is_valid) {
+              throw std::runtime_error("libfreenect: Invalid depth fmt, res: " + 
+                  boost::lexical_cast<std::string>(format) + "," +
+                  boost::lexical_cast<std::string>(resolution));
+            }
+            break;
+          default:
+            throw std::runtime_error("libfreenect: Invalid depth resolution: " +
+                boost::lexical_cast<std::string>(resolution));
+        }
+        break;
+      default:
+        throw std::runtime_error("libfreenect: Invalid depth format: " +
+            boost::lexical_cast<std::string>(format));
+    }
+
+    // All is good, reallocate the buffer and calculate other pieces of info
+    buffer.image_buffer.reset(new unsigned char[buffer.metadata.bytes]);
+    switch(format) {
+      case FREENECT_DEPTH_11BIT:
+      case FREENECT_DEPTH_10BIT:
+      case FREENECT_DEPTH_11BIT_PACKED:
+      case FREENECT_DEPTH_10BIT_PACKED:
+      case FREENECT_DEPTH_MM:
+        buffer.focal_length = 
+          getDepthFocalLength(registration, buffer.metadata.width);
+        buffer.is_registered = false;
+        break;
+      case FREENECT_DEPTH_REGISTERED:
+        buffer.focal_length = getRGBFocalLength(buffer.metadata.width);
+        buffer.is_registered = true;
+      default:
+        throw std::runtime_error("libfreenect: shouldn't reach here");
+    }
+  }
+
+  void fillImage(const ImageBuffer& buffer, void* data) {
+    memcpy(data, buffer.image_buffer.get(), buffer.metadata.bytes);
   }
 
 } /* end namespace freenect_camera */

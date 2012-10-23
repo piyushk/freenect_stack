@@ -42,16 +42,7 @@
 #include <boost/algorithm/string/replace.hpp>
 
 using namespace std;
-namespace freenect_camera
-{
-inline bool operator == (const OutputMode& mode1, const OutputMode& mode2)
-{
-  return (mode1.resolution == mode2.resolution);
-}
-inline bool operator != (const OutputMode& mode1, const OutputMode& mode2)
-{
-  return !(mode1 == mode2);
-}
+namespace freenect_camera {
 
 DriverNodelet::~DriverNodelet ()
 {
@@ -98,11 +89,6 @@ void DriverNodelet::onInitImpl ()
 
   rgb_frame_counter_ = depth_frame_counter_ = ir_frame_counter_ = 0;
   publish_rgb_ = publish_ir_ = publish_depth_ = true;
-
-  // Get some device related parameters
-  param_nh.param("depth_registration", depth_registration_, true);
-  param_nh.param("image_mode", image_mode_, FREENECT_RESOLUTION_MEDIUM);
-  param_nh.param("depth_mode", depth_mode_, FREENECT_RESOLUTION_MEDIUM);
 
   // Initialize the sensor, but don't start any streams yet. That happens in the connection callbacks.
   /* updateModeMaps(); */
@@ -211,7 +197,7 @@ void DriverNodelet::onInitImpl ()
 void DriverNodelet::setupDevice ()
 {
   // Initialize the openni device
-  FreenectDriver& driver = FreenectDriver::getInstance(depth_registration_, image_mode_, depth_mode_);
+  FreenectDriver& driver = FreenectDriver::getInstance();
 
   do {
     driver.updateDeviceList ();
@@ -380,7 +366,7 @@ void DriverNodelet::checkFrameCounters()
     }
 }
 
-void DriverNodelet::rgbCb(boost::shared_ptr<Image> image, void* cookie)
+void DriverNodelet::rgbCb(const ImageBuffer& image, void* cookie)
 {
   ros::Time time = ros::Time::now () + ros::Duration(config_.image_time_offset);
   time_stamp_ = time; // for watchdog
@@ -397,12 +383,12 @@ void DriverNodelet::rgbCb(boost::shared_ptr<Image> image, void* cookie)
   }
 
   if (publish)
-      publishRgbImage(*image, time);
+      publishRgbImage(image, time);
 
   publish_rgb_ = false;
 }
 
-void DriverNodelet::depthCb(boost::shared_ptr<DepthImage> depth_image, void* cookie)
+void DriverNodelet::depthCb(const ImageBuffer& depth_image, void* cookie)
 {
   ros::Time time = ros::Time::now () + ros::Duration(config_.depth_time_offset);
   time_stamp_ = time; // for watchdog
@@ -419,12 +405,12 @@ void DriverNodelet::depthCb(boost::shared_ptr<DepthImage> depth_image, void* coo
   }
 
   if (publish)
-      publishDepthImage(*depth_image, time);
+      publishDepthImage(depth_image, time);
 
   publish_depth_ = false;
 }
 
-void DriverNodelet::irCb(boost::shared_ptr<IRImage> ir_image, void* cookie)
+void DriverNodelet::irCb(const ImageBuffer& ir_image, void* cookie)
 {
   ros::Time time = ros::Time::now() + ros::Duration(config_.depth_time_offset);
   time_stamp_ = time; // for watchdog
@@ -441,98 +427,97 @@ void DriverNodelet::irCb(boost::shared_ptr<IRImage> ir_image, void* cookie)
   }
 
   if (publish)
-      publishIrImage(*ir_image, time);
+      publishIrImage(ir_image, time);
   publish_ir_ = false;
 }
 
-void DriverNodelet::publishRgbImage(const freenect_camera::Image& image, ros::Time time) const
+void DriverNodelet::publishRgbImage(const ImageBuffer& image, ros::Time time) const
 {
-  /// @todo image_width_, image_height_ may be wrong here if downsampling is on?
   sensor_msgs::ImagePtr rgb_msg = boost::make_shared<sensor_msgs::Image >();
   rgb_msg->header.stamp = time;
   rgb_msg->header.frame_id = rgb_frame_id_;
-  if (image.getEncoding() == Image::BAYER_GRBG)
-  {
-    rgb_msg->encoding = sensor_msgs::image_encodings::BAYER_GRBG8;
-    rgb_msg->step = image_width_;
+  rgb_msg->height = image.metadata.height;
+  rgb_msg->width = image.metadata.width;
+  switch(image.metadata.video_format) {
+    case FREENECT_VIDEO_RGB:
+      rgb_msg->encoding = sensor_msgs::image_encodings::RGB8;
+      rgb_msg->step = rgb_msg->width * 3;
+      break;
+    case FREENECT_VIDEO_BAYER:
+      rgb_msg->encoding = sensor_msgs::image_encodings::BAYER_GRBG8;
+      rgb_msg->step = rgb_msg->width;
+      break;
+    case FREENECT_VIDEO_YUV_RGB:
+      rgb_msg->encoding = sensor_msgs::image_encodings::YUV422;
+      rgb_msg->step = rgb_msg->width * 2;
+      break;
+    default:
+      NODELET_ERROR("Unknown RGB image format received from libfreenect");
+      // Unknown encoding -- don't publish
+      return;
   }
-  else if (image.getEncoding() == Image::YUV422)
-  {
-    rgb_msg->encoding = sensor_msgs::image_encodings::YUV422;
-    rgb_msg->step = image_width_ * 2; // 4 bytes for 2 pixels
-  }
-  else 
-  {
-    rgb_msg->encoding = sensor_msgs::image_encodings::RGB8;
-    rgb_msg->step = image_width_ * 3; // 3 bytes for 1 pixels
-  }
-  rgb_msg->height = image_height_;
-  rgb_msg->width = image_width_;
   rgb_msg->data.resize(rgb_msg->height * rgb_msg->step);
-  //std::cout << "size = " << rgb_msg->height * rgb_msg->step << std::endl;
+  fillImage(image, reinterpret_cast<void*>(&rgb_msg->data[0]));
   
-  image.fillRaw(&rgb_msg->data[0]);
-  
-  pub_rgb_.publish(rgb_msg, getRgbCameraInfo(time));
+  pub_rgb_.publish(rgb_msg, getRgbCameraInfo(image, time));
 }
 
-void DriverNodelet::publishDepthImage(const freenect_camera::DepthImage& depth, ros::Time time) const
+void DriverNodelet::publishDepthImage(const ImageBuffer& depth, ros::Time time) const
 {
-  bool registered = device_->isDepthRegistered();
+  bool registered = depth.is_registered;
   
-  /// @todo Get rid of depth_height_, depth_width_
   sensor_msgs::ImagePtr depth_msg = boost::make_shared<sensor_msgs::Image>();
   depth_msg->header.stamp    = time;
   depth_msg->encoding        = sensor_msgs::image_encodings::TYPE_16UC1;
-  depth_msg->height          = depth_height_;
-  depth_msg->width           = depth_width_;
+  depth_msg->height          = depth.metadata.height;
+  depth_msg->width           = depth.metadata.width;
   depth_msg->step            = depth_msg->width * sizeof(short);
   depth_msg->data.resize(depth_msg->height * depth_msg->step);
 
-  depth.fillDepthImageRaw(reinterpret_cast<unsigned short*>(&depth_msg->data[0]));
+  fillImage(depth, reinterpret_cast<void*>(&depth_msg->data[0]));
 
   if (z_offset_mm_ != 0)
   {
     uint16_t* data = reinterpret_cast<uint16_t*>(&depth_msg->data[0]);
     for (unsigned int i = 0; i < depth_msg->width * depth_msg->height; ++i)
       if (data[i] != 0)
-	data[i] += z_offset_mm_;
+        data[i] += z_offset_mm_;
   }
 
   if (registered)
   {
     // Publish RGB camera info and raw depth image to depth_registered/ ns
     depth_msg->header.frame_id = rgb_frame_id_;
-    pub_depth_registered_.publish(depth_msg, getRgbCameraInfo(time));
+    pub_depth_registered_.publish(depth_msg, getRgbCameraInfo(depth, time));
   }
   else
   {
     // Publish depth camera info and raw depth image to depth/ ns
     depth_msg->header.frame_id = depth_frame_id_;
-    pub_depth_.publish(depth_msg, getDepthCameraInfo(time));
+    pub_depth_.publish(depth_msg, getDepthCameraInfo(depth, time));
   }
 
   // Projector "info" probably only useful for working with disparity images
   if (pub_projector_info_.getNumSubscribers() > 0)
   {
-    pub_projector_info_.publish(getProjectorCameraInfo(time));
+    pub_projector_info_.publish(getProjectorCameraInfo(depth, time));
   }
 }
 
-void DriverNodelet::publishIrImage(const freenect_camera::IRImage& ir, ros::Time time) const
+void DriverNodelet::publishIrImage(const ImageBuffer& ir, ros::Time time) const
 {
   sensor_msgs::ImagePtr ir_msg = boost::make_shared<sensor_msgs::Image>();
   ir_msg->header.stamp    = time;
   ir_msg->header.frame_id = depth_frame_id_;
   ir_msg->encoding        = sensor_msgs::image_encodings::MONO16;
-  ir_msg->height          = ir.getHeight();
-  ir_msg->width           = ir.getWidth();
+  ir_msg->height          = ir.metadata.height;
+  ir_msg->width           = ir.metadata.width;
   ir_msg->step            = ir_msg->width * sizeof(uint16_t);
   ir_msg->data.resize(ir_msg->height * ir_msg->step);
 
-  ir.fillDepthImageRaw(reinterpret_cast<unsigned short*>(&ir_msg->data[0]));
+  fillImage(ir, reinterpret_cast<void*>(&ir_msg->data[0]));
 
-  pub_ir_.publish(ir_msg, getIrCameraInfo(time));
+  pub_ir_.publish(ir_msg, getIrCameraInfo(ir, time));
 }
 
 sensor_msgs::CameraInfoPtr DriverNodelet::getDefaultCameraInfo(int width, int height, double f) const
@@ -570,7 +555,7 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getDefaultCameraInfo(int width, int he
 }
 
 /// @todo Use binning/ROI properly in publishing camera infos
-sensor_msgs::CameraInfoPtr DriverNodelet::getRgbCameraInfo(ros::Time time) const
+sensor_msgs::CameraInfoPtr DriverNodelet::getRgbCameraInfo(const ImageBuffer& image, ros::Time time) const
 {
   sensor_msgs::CameraInfoPtr info;
 
@@ -581,7 +566,7 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getRgbCameraInfo(ros::Time time) const
   else
   {
     // If uncalibrated, fill in default values
-    info = getDefaultCameraInfo(image_width_, image_height_, device_->getImageFocalLength(image_width_));
+    info = getDefaultCameraInfo(image.metadata.width, image.metadata.height, image.focal_length);
   }
 
   // Fill in header
@@ -591,8 +576,8 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getRgbCameraInfo(ros::Time time) const
   return info;
 }
 
-sensor_msgs::CameraInfoPtr DriverNodelet::getIrCameraInfo(ros::Time time) const
-{
+sensor_msgs::CameraInfoPtr DriverNodelet::getIrCameraInfo(
+    const ImageBuffer& image, ros::Time time) const {
   sensor_msgs::CameraInfoPtr info;
 
   if (ir_info_manager_->isCalibrated())
@@ -602,7 +587,7 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getIrCameraInfo(ros::Time time) const
   else
   {
     // If uncalibrated, fill in default values
-    info = getDefaultCameraInfo(depth_width_, depth_height_, device_->getDepthFocalLength(depth_width_));
+    info = getDefaultCameraInfo(image.metadata.width, image.metadata.height, image.focal_length);
   }
 
   // Fill in header
@@ -612,13 +597,13 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getIrCameraInfo(ros::Time time) const
   return info;
 }
 
-sensor_msgs::CameraInfoPtr DriverNodelet::getDepthCameraInfo(ros::Time time) const
-{
+sensor_msgs::CameraInfoPtr DriverNodelet::getDepthCameraInfo(
+    const ImageBuffer& image, ros::Time time) const {
   // The depth image has essentially the same intrinsics as the IR image, BUT the
   // principal point is offset by half the size of the hardware correlation window
   // (probably 9x9 or 9x7). See http://www.ros.org/wiki/kinect_calibration/technical
 
-  sensor_msgs::CameraInfoPtr info = getIrCameraInfo(time);
+  sensor_msgs::CameraInfoPtr info = getIrCameraInfo(image, time);
   info->K[2] -= depth_ir_offset_x_; // cx
   info->K[5] -= depth_ir_offset_y_; // cy
   info->P[2] -= depth_ir_offset_x_; // cx
@@ -628,12 +613,12 @@ sensor_msgs::CameraInfoPtr DriverNodelet::getDepthCameraInfo(ros::Time time) con
   return info;
 }
 
-sensor_msgs::CameraInfoPtr DriverNodelet::getProjectorCameraInfo(ros::Time time) const
-{
+sensor_msgs::CameraInfoPtr DriverNodelet::getProjectorCameraInfo(
+    const ImageBuffer& image, ros::Time time) const {
   // The projector info is simply the depth info with the baseline encoded in the P matrix.
   // It's only purpose is to be the "right" camera info to the depth camera's "left" for
   // processing disparity images.
-  sensor_msgs::CameraInfoPtr info = getDepthCameraInfo(time);
+  sensor_msgs::CameraInfoPtr info = getDepthCameraInfo(image, time);
   // Tx = -baseline * fx
   info->P[3] = -device_->getBaseline() * info->P[0];
   return info;
@@ -645,47 +630,42 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
   depth_ir_offset_y_ = config.depth_ir_offset_y;
   z_offset_mm_ = config.z_offset_mm;
 
-  OutputMode old_depth_mode = device_->getDepthOutputMode ();
-  OutputMode old_image_mode = device_->getImageOutputMode ();
-
-  OutputMode compatible_depth_mode = old_depth_mode;
-  OutputMode compatible_image_mode = old_image_mode;
-  
   // We need this for the ASUS Xtion Pro
-  // OutputMode old_image_mode = old_depth_mode, image_mode, compatible_image_mode;
-  // if (device_->hasImageStream ())
-  // {
-  //   old_image_mode = device_->getImageOutputMode ();
-  //    
-  //   // does the device support the new image mode?
-  //   image_mode = mapConfigMode2OutputMode (config.image_mode);
+  OutputMode old_image_mode, image_mode, compatible_image_mode;
+  if (device_->hasImageStream ())
+  {
+    old_image_mode = device_->getImageOutputMode ();
+     
+    // does the device support the new image mode?
+    image_mode = mapConfigMode2OutputMode (config.image_mode);
 
-  //   if (!device_->findCompatibleImageMode (image_mode, compatible_image_mode))
-  //   {
-  //     OutputMode default_mode = device_->getDefaultImageMode();
-  //     NODELET_WARN("Could not find any compatible image output mode for %d."
-  //                  "Falling back to default image output mode %d.",
-  //                   image_mode.resolution,
-  //                   default_mode.resolution);
+    if (!device_->findCompatibleImageMode (image_mode, compatible_image_mode))
+    {
+      OutputMode default_mode = device_->getDefaultImageMode();
+      NODELET_WARN("Could not find any compatible image output mode for %d."
+                   "Falling back to default image output mode %d.",
+                    image_mode,
+                    default_mode);
 
-  //     config.image_mode = mapMode2ConfigMode(default_mode);
-  //     image_mode = compatible_image_mode = default_mode;
-  //   }
-  // }
-  // 
-  // OutputMode depth_mode, compatible_depth_mode;
-  // depth_mode = mapConfigMode2OutputMode (config.depth_mode);
-  // if (!device_->findCompatibleDepthMode (depth_mode, compatible_depth_mode))
-  // {
-  //   OutputMode default_mode = device_->getDefaultDepthMode();
-  //   NODELET_WARN("Could not find any compatible depth output mode for %d."
-  //                "Falling back to default depth output mode %d.",
-  //                 depth_mode.resolution,
-  //                 default_mode.resolution);
-  //   
-  //   config.depth_mode = mapMode2ConfigMode(default_mode);
-  //   depth_mode = compatible_depth_mode = default_mode;
-  // }
+      config.image_mode = mapMode2ConfigMode(default_mode);
+      image_mode = compatible_image_mode = default_mode;
+    }
+  }
+  
+  OutputMode old_depth_mode, depth_mode, compatible_depth_mode;
+  old_depth_mode = device_->getDepthOutputMode();
+  depth_mode = mapConfigMode2OutputMode (config.depth_mode);
+  if (!device_->findCompatibleDepthMode (depth_mode, compatible_depth_mode))
+  {
+    OutputMode default_mode = device_->getDefaultDepthMode();
+    NODELET_WARN("Could not find any compatible depth output mode for %d."
+                 "Falling back to default depth output mode %d.",
+                  depth_mode,
+                  default_mode);
+    
+    config.depth_mode = mapMode2ConfigMode(default_mode);
+    depth_mode = compatible_depth_mode = default_mode;
+  }
 
   // here everything is fine. Now make the changes
   if ( (device_->hasImageStream () && compatible_image_mode != old_image_mode) ||
@@ -703,21 +683,15 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
     startSynchronization ();
   }
 
-  // Desired dimensions may require decimation from the hardware-compatible ones
-  image_width_  = compatible_image_mode.width;
-  image_height_ = compatible_image_mode.height;
-  depth_width_  = compatible_depth_mode.width;
-  depth_height_ = compatible_depth_mode.height;
-
-  /// @todo Run connectCb if registration setting changes
-  // if (device_->isDepthRegistered () && !config.depth_registration)
-  // {
-  //   device_->setDepthRegistration (false);
-  // }
-  // else if (!device_->isDepthRegistered () && config.depth_registration)
-  // {
-  //   device_->setDepthRegistration (true);
-  // }
+  // @todo Run connectCb if registration setting changes
+  if (device_->isDepthRegistered () && !config.depth_registration)
+  {
+    device_->setDepthRegistration (false);
+  }
+  else if (!device_->isDepthRegistered () && config.depth_registration)
+  {
+    device_->setDepthRegistration (true);
+  }
 
   // now we can copy
   config_ = config;
@@ -743,43 +717,43 @@ void DriverNodelet::stopSynchronization()
   }
 }
 
-// void DriverNodelet::updateModeMaps ()
-// {
-//   OutputMode output_mode;
-// 
-//   output_mode.resolution = FREENECT_RESOLUTION_HIGH;
-//   mode2config_map_[output_mode] = Freenect_SXGA;
-//   config2mode_map_[Freenect_SXGA] = output_mode;
-// 
-//   output_mode.resolution = FREENECT_RESOLUTION_MEDIUM;
-//   mode2config_map_[output_mode] = Freenect_VGA;
-//   config2mode_map_[Freenect_VGA] = output_mode;
-// }
+void DriverNodelet::updateModeMaps ()
+{
+  OutputMode output_mode;
 
-// int DriverNodelet::mapMode2ConfigMode (const OutputMode& output_mode) const
-// {
-//   std::map<OutputMode, int, modeComp>::const_iterator it = mode2config_map_.find (output_mode);
-// 
-//   if (it == mode2config_map_.end ())
-//   {
-//     NODELET_ERROR ("mode not be found");
-//     exit (-1);
-//   }
-//   else
-//     return it->second;
-// }
-// 
-// OutputMode DriverNodelet::mapConfigMode2OutputMode (int mode) const
-// {
-//   std::map<int, OutputMode>::const_iterator it = config2mode_map_.find (mode);
-//   if (it == config2mode_map_.end ())
-//   {
-//     NODELET_ERROR ("mode %d could not be found", mode);
-//     exit (-1);
-//   }
-//   else
-//     return it->second;
-// }
+  output_mode = FREENECT_RESOLUTION_HIGH;
+  mode2config_map_[output_mode] = Freenect_SXGA;
+  config2mode_map_[Freenect_SXGA] = output_mode;
+
+  output_mode = FREENECT_RESOLUTION_MEDIUM;
+  mode2config_map_[output_mode] = Freenect_VGA;
+  config2mode_map_[Freenect_VGA] = output_mode;
+}
+
+int DriverNodelet::mapMode2ConfigMode (const OutputMode& output_mode) const
+{
+  std::map<OutputMode, int>::const_iterator it = mode2config_map_.find (output_mode);
+
+  if (it == mode2config_map_.end ())
+  {
+    NODELET_ERROR ("mode not be found");
+    exit (-1);
+  }
+  else
+    return it->second;
+}
+
+OutputMode DriverNodelet::mapConfigMode2OutputMode (int mode) const
+{
+  std::map<int, OutputMode>::const_iterator it = config2mode_map_.find (mode);
+  if (it == config2mode_map_.end ())
+  {
+    NODELET_ERROR ("mode %d could not be found", mode);
+    exit (-1);
+  }
+  else
+    return it->second;
+}
 
 void DriverNodelet::watchDog (const ros::TimerEvent& event)
 {

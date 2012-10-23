@@ -77,9 +77,9 @@ namespace freenect_camera
       OutputMode mapConfigMode2OutputMode (int mode) const;
 
       // Callback methods
-      void rgbCb(boost::shared_ptr<Image> image, void* cookie);
-      void depthCb(boost::shared_ptr<DepthImage> depth_image, void* cookie);
-      void irCb(boost::shared_ptr<IRImage> ir_image, void* cookie);
+      void rgbCb(const ImageBuffer& image, void* cookie);
+      void depthCb(const ImageBuffer& depth_image, void* cookie);
+      void irCb(const ImageBuffer&_image, void* cookie);
       void configCb(Config &config, uint32_t level);
 
       void rgbConnectCb();
@@ -88,10 +88,10 @@ namespace freenect_camera
 
       // Methods to get calibration parameters for the various cameras
       sensor_msgs::CameraInfoPtr getDefaultCameraInfo(int width, int height, double f) const;
-      sensor_msgs::CameraInfoPtr getRgbCameraInfo(ros::Time time) const;
-      sensor_msgs::CameraInfoPtr getIrCameraInfo(ros::Time time) const;
-      sensor_msgs::CameraInfoPtr getDepthCameraInfo(ros::Time time) const;
-      sensor_msgs::CameraInfoPtr getProjectorCameraInfo(ros::Time time) const;
+      sensor_msgs::CameraInfoPtr getRgbCameraInfo(const ImageBuffer& image, ros::Time time) const;
+      sensor_msgs::CameraInfoPtr getIrCameraInfo(const ImageBuffer& image, ros::Time time) const;
+      sensor_msgs::CameraInfoPtr getDepthCameraInfo(const ImageBuffer& image, ros::Time time) const;
+      sensor_msgs::CameraInfoPtr getProjectorCameraInfo(const ImageBuffer& image, ros::Time time) const;
 
       // published topics
       image_transport::CameraPublisher pub_rgb_;
@@ -100,9 +100,9 @@ namespace freenect_camera
       ros::Publisher pub_projector_info_;
 
       // publish methods
-      void publishRgbImage(const Image& image, ros::Time time) const;
-      void publishDepthImage(const DepthImage& depth, ros::Time time) const;
-      void publishIrImage(const IRImage& ir, ros::Time time) const;
+      void publishRgbImage(const ImageBuffer& image, ros::Time time) const;
+      void publishDepthImage(const ImageBuffer& depth, ros::Time time) const;
+      void publishIrImage(const ImageBuffer& ir, ros::Time time) const;
 
       /** \brief the actual openni device */
       boost::shared_ptr<FreenectDevice> device_;
@@ -121,17 +121,6 @@ namespace freenect_camera
       double depth_ir_offset_y_;
       int z_offset_mm_;
 
-      // initial device setup information
-      bool depth_registration_;
-      int image_mode_;
-      int depth_mode_;
-
-      /// @todo Prefer binning to changing width/height
-      unsigned image_width_;
-      unsigned image_height_;
-      unsigned depth_width_;
-      unsigned depth_height_;
-
       // Counters/flags for skipping frames
       boost::mutex counter_mutex_;
       int rgb_frame_counter_;
@@ -149,19 +138,7 @@ namespace freenect_camera
       ros::Time time_stamp_;
       ros::Timer watch_dog_timer_;
 
-      struct modeComp
-      {
-        bool operator () (const OutputMode& mode1, const OutputMode& mode2) const
-        {
-          if (mode1.resolution < mode2.resolution)
-            return true;
-          else if (mode1.resolution > mode2.resolution)
-            return false;
-          else
-            return false; // they are the same, return false
-        }
-      };
-      std::map<OutputMode, int, modeComp> mode2config_map_;
+      std::map<OutputMode, int> mode2config_map_;
       std::map<int, OutputMode> config2mode_map_;
   };
 }
