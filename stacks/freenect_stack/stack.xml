@@ -1,5 +1,5 @@
 <stack>
-  <description brief="libfreenect based Kinect driver for ROS">
+  <description brief="A libfreenect based ROS driver for the Microsoft Kinect">
     A libfreenect based ROS driver for the Microsoft Kinect
   </description>
 
@@ -14,5 +14,6 @@
   <depend stack="image_common" /> <!-- camera_info_manager, image_transport -->
   <depend stack="nodelet_core" /> <!-- nodelet -->
   <depend stack="ros_comm" /> <!-- roscpp -->
+  <depend stack="geometry" /> <!-- tf -->
 
 </stack>

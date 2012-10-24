@@ -1,10 +1,10 @@
 <package>
   <description brief="libfreenect">
 
-     libfreenect
+      Open source libraries that will enable the Kinect to be used with Windows, Linux, and Mac.
 
   </description>
-  <author>Hector Martin, Josh Blake, Kyle Machulis and others.</author>
+  <author>Hector Martin, Josh Blake, Kyle Machulis and the OpenKinect community(http://www.openkinect.org).</author>
   <license>Apache 2.0</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/libfreenect</url>

@@ -1,8 +1,7 @@
 <package>
-  <description brief="freenect_camera">
-
-     freenect_camera
-
+  <description brief="A libfreenect based ROS driver for the Microsoft Kinect">
+    A libfreenect based ROS driver for the Microsoft Kinect. This is a port of
+    the OpenNI driver to use libfreenect.
   </description>
   <author>Patrick Mihelich, Suat Gedikli, Radu Bogdan Rusu (original openni_camera driver). Piyush Khandelwal (libfreenect port).</author>
   <license>BSD</license>
@@ -18,8 +17,8 @@
   <depend package="sensor_msgs" />
 
   <export>
-    <cpp cflags="-I${prefix}/include -I/usr/include/freenect -I${prefix}/cfg/cpp"
-         lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lfreenect_nodelet -lfreenect_driver" />
+    <cpp cflags="-I${prefix}/include -I${prefix}/cfg/cpp"
+         lflags="-Wl,-rpath,${prefix}/lib -L${prefix}/lib -lfreenect_nodelet" />
     <nodelet plugin="${prefix}/freenect_nodelets.xml" />
   </export>
 
