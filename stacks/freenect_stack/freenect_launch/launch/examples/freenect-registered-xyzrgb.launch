@@ -20,7 +20,7 @@
   <arg name="depth_camera_info_url" default="" />
 
   <!-- Use OpenNI's factory-calibrated depth->RGB registration? -->
-  <arg name="depth_registration" default="false" />
+  <arg name="depth_registration" default="true" />
 
   <!-- Arguments for remapping all device namespaces -->
   <arg name="rgb"              default="rgb" />
@@ -70,7 +70,7 @@
     </include>
 
     <!-- Load standard constellation of processing nodelets -->
-    <include file="$(find freenect_launch)/launch/includes/processing.launch">
+    <include file="$(find freenect_launch)/launch/examples/includes/produce-xyzrgb.launch">
       <arg name="manager"               value="/$(arg manager)" /> <!-- Fully resolved -->
       <arg name="rgb"                   value="$(arg rgb)" />
       <arg name="ir"                    value="$(arg ir)" />

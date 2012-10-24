@@ -8,6 +8,15 @@
   <arg     if="$(arg respawn)" name="bond" value="" />
   <arg unless="$(arg respawn)" name="bond" value="--no-bond" />
 
+  <!-- (piyushk) Enabling both will lead to a trivial error during launch -->
+  <arg name="allow_software_registration" default="true" />
+  <arg name="allow_hardware_registration" default="true" />
+
+  <!-- (optional) publish the registered xyzrgb cloud -->
+  <arg name="publish_metric" default="true" />
+  <arg name="publish_metric_rect" default="true" />
+  <arg name="points_xyzrgb" default="true" />
+
   <!-- TODO: Instead "rgb", "depth" and "depth_registered" should be remapped as
        necessary by top-level launch file -->
   <arg name="rgb"              default="rgb" />
@@ -18,7 +27,7 @@
   <arg name="suffix" default="$(arg depth)_$(arg rgb)" />
 
   <!-- Registration nodelet, projecting depth to RGB camera -->
-  <node pkg="nodelet" type="nodelet" name="register_$(arg suffix)"
+  <node if="$(arg allow_software_registration)" pkg="nodelet" type="nodelet" name="register_$(arg suffix)"
         args="load depth_image_proc/register $(arg manager) $(arg bond)"
 	respawn="$(arg respawn)">
     <!-- Explicit topic remappings, shouldn't need all of these -->
@@ -28,14 +37,25 @@
     <remap from="depth_registered/image_rect" to="$(arg depth_registered)/image_rect_raw" />
   </node>
 
+  <!-- Get all the usual depth topics -->
+  <include file="$(find freenect_launch)/launch/includes/depth.launch"
+	   ns="$(arg depth_registered)">
+    <arg name="manager"    value="$(arg manager)" />
+    <arg name="points_xyz" value="false" /> <!-- Suppress XYZ point cloud -->
+    <arg name="respawn" value="$(arg respawn)" />
+    <arg name="rectify" value="$(arg allow_hardware_registration)" />
+    <arg name="publish_metric" value="$(arg publish_metric)" />
+    <arg name="publish_metric_rect" value="$(arg publish_metric_rect)" />
+  </include>
+
   <!-- Instead publish registered XYZRGB point cloud -->
-  <node pkg="nodelet" type="nodelet" name="points_xyzrgb_$(arg suffix)"
+  <node if="$(arg points_xyzrgb)" pkg="nodelet" type="nodelet" name="points_xyzrgb_$(arg suffix)"
         args="load depth_image_proc/point_cloud_xyzrgb $(arg manager) $(arg bond)"
 	respawn="$(arg respawn)">
     <!-- Explicit topic remappings, shouldn't need all of these -->
     <remap from="rgb/image_rect_color"        to="$(arg rgb)/image_rect_color" />
     <remap from="rgb/camera_info"             to="$(arg rgb)/camera_info" />
-    <remap from="depth_registered/image_rect" to="$(arg depth_registered)/image_raw" />
+    <remap from="depth_registered/image_rect" to="$(arg depth_registered)/image_rect_raw" />
     <remap from="depth_registered/points"     to="$(arg depth_registered)/points" />
   </node>
 
