@@ -35,6 +35,5 @@ gencfg()
 #rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
 
-rosbuild_add_executable(test1 tests/test1.cpp)
 rosbuild_add_library(freenect_nodelet src/nodelets/driver.cpp)
 rosbuild_add_executable(freenect_node src/nodes/freenect_node.cpp)

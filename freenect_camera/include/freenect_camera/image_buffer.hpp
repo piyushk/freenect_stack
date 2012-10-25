@@ -6,7 +6,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/lexical_cast.hpp>
 
-#include <freenect/libfreenect.hpp>
+#include <libfreenect.h>
 
 namespace freenect_camera {
 

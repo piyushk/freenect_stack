@@ -6,8 +6,8 @@
 #include <boost/thread/mutex.hpp>
 #include <stdexcept>
 
-#include <freenect/libfreenect.h>
-#include <freenect/libfreenect-registration.h>
+#include <libfreenect.h>
+#include <libfreenect-registration.h>
 #include <freenect_camera/image_buffer.hpp>
 
 namespace freenect_camera {
