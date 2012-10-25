@@ -6,7 +6,7 @@
   <author>Maintained by Piyush Khandelwal</author>
   <license>Apache 2.0/BSD</license>  
   <review status="unreviewed" notes=""/>
-  <version>0.0.1</version>
+  <version>0.0.2</version>
   <url>http://ros.org/wiki/freenect_stack</url>
 
   <depend stack="common_msgs" /> <!-- common_msgs -->
