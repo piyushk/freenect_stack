@@ -11,12 +11,9 @@ libfreenect: $(SOURCE_DIR)/unpacked
 	mkdir -p $(SOURCE_DIR)/build
 	cd $(SOURCE_DIR)/build && cmake ../ 
 	cd $(SOURCE_DIR)/build && make
-	mkdir -p include/freenect
-	cp $(SOURCE_DIR)/include/* include/
-	#cp $(SOURCE_DIR)/wrappers/cpp/libfreenect.hpp include/freenect/
-	#cp $(SOURCE_DIR)/wrappers/c_sync/libfreenect_sync.* include/freenect/
-	ln -sf $(SOURCE_DIR)/build/bin bin
-	ln -sf $(SOURCE_DIR)/build/lib lib
+	cp -rf $(SOURCE_DIR)/include include
+	cp -rf $(SOURCE_DIR)/build/bin bin
+	cp -rf $(SOURCE_DIR)/build/lib lib
 	touch libfreenect
 
 clean:
