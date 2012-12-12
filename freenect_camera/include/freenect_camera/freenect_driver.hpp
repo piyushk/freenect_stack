@@ -99,6 +99,10 @@ namespace freenect_camera {
         }
       }
 
+      void enableDebug() {
+        freenect_set_log_level(driver_, FREENECT_LOG_SPEW);
+      }
+
     private:
       FreenectDriver() {
         freenect_init(&driver_, NULL);

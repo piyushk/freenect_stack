@@ -138,6 +138,9 @@ namespace freenect_camera
       ros::Time time_stamp_;
       ros::Timer watch_dog_timer_;
 
+      /** \brief enable libfreenect debugging */
+      bool libfreenect_debug_;
+
       std::map<OutputMode, int> mode2config_map_;
       std::map<int, OutputMode> config2mode_map_;
   };

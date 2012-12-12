@@ -84,6 +84,10 @@ void DriverNodelet::onInitImpl ()
   rgb_frame_counter_ = depth_frame_counter_ = ir_frame_counter_ = 0;
   publish_rgb_ = publish_ir_ = publish_depth_ = true;
 
+  // Check to see if we should enable debugging messages in libfreenect
+  // libfreenect_debug_ should be set before calling setupDevice
+  param_nh.param("debug" , libfreenect_debug_, false);
+
   // Initialize the sensor, but don't start any streams yet. That happens in the connection callbacks.
   updateModeMaps();
   setupDevice();
@@ -192,6 +196,10 @@ void DriverNodelet::setupDevice ()
 {
   // Initialize the openni device
   FreenectDriver& driver = FreenectDriver::getInstance();
+
+  // Enable debugging in libfreenect if requested
+  if (libfreenect_debug_)
+    driver.enableDebug();
 
   do {
     driver.updateDeviceList ();
