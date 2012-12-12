@@ -1,9 +1,9 @@
 all: libfreenect
 
-TARBALL = build/OpenKinect-libfreenect-9ab2c20.tar.gz
-TARBALL_URL = http://cs.utexas.edu/~piyushk/share/OpenKinect-libfreenect-v0.1.2-17-g9ab2c20.tar.gz
-SOURCE_DIR = build/OpenKinect-libfreenect-9ab2c20
-MD5SUM_FILE = OpenKinect-libfreenect-v0.1.2-17-g9ab2c20.tar.gz.md5sum
+TARBALL = build/OpenKinect-libfreenect-master-d1d19df895.tar.gz
+TARBALL_URL = http://cs.utexas.edu/~piyushk/bwi_share/OpenKinect-libfreenect-master-d1d19df895.tar.gz
+SOURCE_DIR = build/OpenKinect-libfreenect-master-d1d19df895
+MD5SUM_FILE = OpenKinect-libfreenect-master-d1d19df895.tar.gz.md5sum
 UNPACK_CMD = tar xzf
 include $(shell rospack find mk)/download_unpack_build.mk
 
