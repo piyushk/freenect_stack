@@ -3,9 +3,10 @@
 
   <!-- "camera" should uniquely identify the device. All topics are pushed down
        into the "camera" namespace, and it is prepended to tf frame ids. -->
+  <arg name="ns" default="" />
   <arg name="camera" default="camera" />
-  <arg name="rgb_frame_id"   default="/$(arg camera)_rgb_optical_frame" />
-  <arg name="depth_frame_id" default="/$(arg camera)_depth_optical_frame" />
+  <arg name="rgb_frame_id"   default="$(arg ns)/$(arg camera)_rgb_optical_frame" />
+  <arg name="depth_frame_id" default="$(arg ns)/$(arg camera)_depth_optical_frame" />
 
   <!-- device_id can have the following formats:
          "B00367707227042B": Use device with given serial number
@@ -39,13 +40,16 @@
   <arg name="bond" default="false" /> <!-- DEPRECATED, use respawn arg instead -->
   <arg name="respawn" default="$(arg bond)" />
 
-  <!-- Start nodelet manager in top-level namespace -->
+  <!-- Start nodelet manager in provided namespace -->
   <arg name="manager" value="$(arg camera)_nodelet_manager" />
   <arg name="debug" default="false" /> <!-- Run manager in GDB? -->
   <include file="$(find freenect_launch)/launch/includes/manager.launch">
     <arg name="name" value="$(arg manager)" />
     <arg name="debug" value="$(arg debug)" />
   </include>
+
+  <!-- figure out the resolved nodelet manager namespace -->
+  <arg name="resolved_manager" value="$(arg ns)/$(arg manager)" />
 
   <arg name="processing_constellation_file"
        default="$(find freenect_launch)/launch/includes/processing.launch">
@@ -57,7 +61,7 @@
     <include if="$(arg load_driver)"
 	     file="$(find freenect_launch)/launch/includes/device.launch">
       <!-- Could really use some syntactic sugar for this -->
-      <arg name="manager"               value="/$(arg manager)" /> <!-- Fully resolved -->
+      <arg name="manager"               value="$(arg resolved_manager)" /> <!-- fully resolved -->
       <arg name="device_id"             value="$(arg device_id)" />
       <arg name="rgb_frame_id"          value="$(arg rgb_frame_id)" />
       <arg name="depth_frame_id"        value="$(arg depth_frame_id)" />
@@ -74,7 +78,7 @@
 
     <!-- Load standard constellation of processing nodelets -->
     <include file="$(arg processing_constellation_file)">
-      <arg name="manager"               value="/$(arg manager)" /> <!-- Fully resolved -->
+      <arg name="manager"               value="$(arg resolved_manager)" /> <!-- Fully resolved -->
       <arg name="rgb"                   value="$(arg rgb)" />
       <arg name="ir"                    value="$(arg ir)" />
       <arg name="depth"                 value="$(arg depth)" />
