@@ -50,6 +50,10 @@ DriverNodelet::~DriverNodelet ()
   init_thread_.interrupt();
   init_thread_.join();
 
+  // Interrupt and close diagnostics thread
+  close_diagnostics_ = true;
+  diagnostics_thread_.join();
+
   FreenectDriver& driver = FreenectDriver::getInstance ();
   driver.shutdown();
 
@@ -127,6 +131,17 @@ void DriverNodelet::onInitImpl ()
   param_nh.param("rgb_camera_info_url", rgb_info_url, std::string());
   param_nh.param("depth_camera_info_url", ir_info_url, std::string());
 
+  bool enable_rgb_diagnostics, enable_ir_diagnostics, enable_depth_diagnostics;
+  double diagnostics_max_frequency, diagnostics_min_frequency;
+  double diagnostics_tolerance, diagnostics_window_time;
+  param_nh.param("enable_rgb_diagnostics", enable_rgb_diagnostics, false);
+  param_nh.param("enable_ir_diagnostics", enable_ir_diagnostics, false);
+  param_nh.param("enable_depth_diagnostics", enable_depth_diagnostics, false);
+  param_nh.param("diagnostics_max_frequency", diagnostics_max_frequency, 30.0);
+  param_nh.param("diagnostics_min_frequency", diagnostics_min_frequency, 15.0);
+  param_nh.param("diagnostics_tolerance", diagnostics_tolerance, 0.05);
+  param_nh.param("diagnostics_window_time", diagnostics_window_time, 5.0);
+
   // Suppress some of the output from loading camera calibrations (kinda hacky)
   log4cxx::LoggerPtr logger_ccp = log4cxx::Logger::getLogger("ros.camera_calibration_parsers");
   log4cxx::LoggerPtr logger_cim = log4cxx::Logger::getLogger("ros.camera_info_manager");
@@ -156,6 +171,11 @@ void DriverNodelet::onInitImpl ()
     // assign to pub_depth_. Then pub_depth_.getNumSubscribers() returns 0, and we fail to start
     // the depth generator.
     boost::lock_guard<boost::mutex> lock(connect_mutex_);
+
+    //Instantiate the diagnostic updater
+    pub_freq_max_ = diagnostics_max_frequency;
+    pub_freq_min_ = diagnostics_min_frequency;
+    diagnostic_updater_.reset(new diagnostic_updater::Updater);
     
     // Asus Xtion PRO does not have an RGB camera
     if (device_->hasImageStream())
@@ -163,6 +183,11 @@ void DriverNodelet::onInitImpl ()
       image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
       ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
       pub_rgb_ = rgb_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
+      if (enable_rgb_diagnostics) {
+        pub_rgb_freq_.reset(new TopicDiagnostic("RGB Image", *diagnostic_updater_,
+            FrequencyStatusParam(&pub_freq_min_, &pub_freq_max_, 
+                diagnostics_tolerance, diagnostics_time_window)));
+      }
     }
 
     if (device_->hasIRStream())
@@ -170,6 +195,11 @@ void DriverNodelet::onInitImpl ()
       image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::irConnectCb, this);
       ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::irConnectCb, this);
       pub_ir_ = ir_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
+      if (enable_ir_diagnostics) {
+        pub_ir_freq_.reset(new TopicDiagnostic("IR Image", *diagnostic_updater_,
+            FrequencyStatusParam(&pub_freq_min_, &pub_freq_max_, 
+                diagnostics_tolerance, diagnostics_time_window)));
+      }
     }
 
     if (device_->hasDepthStream())
@@ -177,18 +207,36 @@ void DriverNodelet::onInitImpl ()
       image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::depthConnectCb, this);
       ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::depthConnectCb, this);
       pub_depth_ = depth_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
+      if (enable_depth_diagnostics) {
+        pub_depth_freq_.reset(new TopicDiagnostic("Depth Image", *diagnostic_updater_,
+            FrequencyStatusParam(&pub_freq_min_, &pub_freq_max_, 
+                diagnostics_tolerance, diagnostics_time_window)));
+      }
+
       pub_projector_info_ = projector_nh.advertise<sensor_msgs::CameraInfo>("camera_info", 1, rssc, rssc);
       
-      if (device_->isDepthRegistrationSupported())
+      if (device_->isDepthRegistrationSupported()) {
         pub_depth_registered_ = depth_registered_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
+      }
     }
   }
+
+  // Create separate diagnostics thread
+  close_diagnostics_ = false;
+  diagnostics_thread_ = boost::thread(boost::bind(&DriverNodelet::updateDiagnostics, this));
 
   // Create watch dog timer callback
   if (param_nh.getParam("time_out", time_out_) && time_out_ > 0.0)
   {
     time_stamp_ = ros::Time(0,0);
     watch_dog_timer_ = nh.createTimer(ros::Duration(time_out_), &DriverNodelet::watchDog, this);
+  }
+}
+
+void DriverNodelet::updateDiagnostics() {
+  while (!close_diagnostics_) {
+    diagnostic_updater_->update();
+    boost::this_thread::sleep(boost::posix_time::milliseconds(10));
   }
 }
 
@@ -318,6 +366,7 @@ void DriverNodelet::depthConnectCb()
     device_->startDepthStream();
     startSynchronization();
     time_stamp_ = ros::Time(0,0); // starting an additional stream blocks for a while, could upset watchdog
+
   }
   else if (!need_depth && device_->isDepthStreamRunning())
   {
@@ -462,6 +511,7 @@ void DriverNodelet::publishRgbImage(const ImageBuffer& image, ros::Time time) co
   fillImage(image, reinterpret_cast<void*>(&rgb_msg->data[0]));
   
   pub_rgb_.publish(rgb_msg, getRgbCameraInfo(image, time));
+  pub_rgb_freq_->tick();
 }
 
 void DriverNodelet::publishDepthImage(const ImageBuffer& depth, ros::Time time) const
@@ -498,6 +548,7 @@ void DriverNodelet::publishDepthImage(const ImageBuffer& depth, ros::Time time) 
     depth_msg->header.frame_id = depth_frame_id_;
     pub_depth_.publish(depth_msg, getDepthCameraInfo(depth, time));
   }
+  pub_depth_freq_->tick();
 
   // Projector "info" probably only useful for working with disparity images
   if (pub_projector_info_.getNumSubscribers() > 0)
@@ -520,6 +571,7 @@ void DriverNodelet::publishIrImage(const ImageBuffer& ir, ros::Time time) const
   fillImage(ir, reinterpret_cast<void*>(&ir_msg->data[0]));
 
   pub_ir_.publish(ir_msg, getIrCameraInfo(ir, time));
+  pub_ir_freq_->tick();
 }
 
 sensor_msgs::CameraInfoPtr DriverNodelet::getDefaultCameraInfo(int width, int height, double f) const

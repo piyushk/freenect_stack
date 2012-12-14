@@ -15,6 +15,7 @@
   <depend package="nodelet" />
   <depend package="roscpp" />
   <depend package="sensor_msgs" />
+  <depend package="diagnostic_updater" />
 
   <export>
     <cpp cflags="-I${prefix}/include -I${prefix}/cfg/cpp"

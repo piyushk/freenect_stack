@@ -16,5 +16,6 @@
   <depend stack="ros_comm" /> <!-- roscpp -->
   <depend stack="geometry" /> <!-- tf -->
   <depend stack="image_pipeline" /> <!-- image_proc, depth_image_proc -->
+  <depend stack="diagnostics" /> <!-- diagnostic_updater -->
 
 </stack>

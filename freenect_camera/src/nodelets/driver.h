@@ -53,6 +53,10 @@
 // freenect wrapper
 #include <freenect_camera/freenect_driver.hpp>
 
+// diagnostics
+#include <diagnostic_updater/diagnostic_updater.h>
+#include <diagnostic_updater/publisher.h>
+
 namespace freenect_camera
 {
   ////////////////////////////////////////////////////////////////////////////////////////////
@@ -63,6 +67,9 @@ namespace freenect_camera
     private:
       typedef FreenectConfig Config;
       typedef dynamic_reconfigure::Server<Config> ReconfigureServer;
+      typedef diagnostic_updater::FrequencyStatusParam FrequencyStatusParam;
+      typedef diagnostic_updater::HeaderlessTopicDiagnostic TopicDiagnostic;
+      typedef boost::shared_ptr<TopicDiagnostic> TopicDiagnosticPtr;
 
       /** \brief Nodelet initialization routine. */
       virtual void onInit ();
@@ -98,6 +105,16 @@ namespace freenect_camera
       image_transport::CameraPublisher pub_depth_, pub_depth_registered_;
       image_transport::CameraPublisher pub_ir_;
       ros::Publisher pub_projector_info_;
+
+      // Maintain frequency diagnostics on all sensors
+      boost::shared_ptr<diagnostic_updater::Updater> diagnostic_updater_;
+      double pub_freq_max_, pub_freq_min_;
+      TopicDiagnosticPtr pub_rgb_freq_;
+      TopicDiagnosticPtr pub_depth_freq_;
+      TopicDiagnosticPtr pub_ir_freq_;
+      boost::thread diagnostics_thread_;
+      void updateDiagnostics();
+      bool close_diagnostics_;
 
       // publish methods
       void publishRgbImage(const ImageBuffer& image, ros::Time time) const;
