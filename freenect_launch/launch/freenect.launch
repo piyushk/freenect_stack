@@ -47,6 +47,9 @@
     <arg name="debug" value="$(arg debug)" />
   </include>
 
+  <arg name="processing_constellation_file"
+       default="$(find freenect_launch)/launch/includes/processing.launch">
+
   <!-- Push down all topics/nodelets into "camera" namespace -->
   <group ns="$(arg camera)">
 
@@ -70,7 +73,7 @@
     </include>
 
     <!-- Load standard constellation of processing nodelets -->
-    <include file="$(find freenect_launch)/launch/includes/processing.launch">
+    <include file="$(arg processing_constellation_file)">
       <arg name="manager"               value="/$(arg manager)" /> <!-- Fully resolved -->
       <arg name="rgb"                   value="$(arg rgb)" />
       <arg name="ir"                    value="$(arg ir)" />
