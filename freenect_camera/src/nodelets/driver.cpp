@@ -131,14 +131,13 @@ void DriverNodelet::onInitImpl ()
   param_nh.param("rgb_camera_info_url", rgb_info_url, std::string());
   param_nh.param("depth_camera_info_url", ir_info_url, std::string());
 
-  bool enable_rgb_diagnostics, enable_ir_diagnostics, enable_depth_diagnostics;
   double diagnostics_max_frequency, diagnostics_min_frequency;
   double diagnostics_tolerance, diagnostics_window_time;
-  param_nh.param("enable_rgb_diagnostics", enable_rgb_diagnostics, false);
-  param_nh.param("enable_ir_diagnostics", enable_ir_diagnostics, false);
-  param_nh.param("enable_depth_diagnostics", enable_depth_diagnostics, false);
+  param_nh.param("enable_rgb_diagnostics", enable_rgb_diagnostics_, false);
+  param_nh.param("enable_ir_diagnostics", enable_ir_diagnostics_, false);
+  param_nh.param("enable_depth_diagnostics", enable_depth_diagnostics_, false);
   param_nh.param("diagnostics_max_frequency", diagnostics_max_frequency, 30.0);
-  param_nh.param("diagnostics_min_frequency", diagnostics_min_frequency, 15.0);
+  param_nh.param("diagnostics_min_frequency", diagnostics_min_frequency, 30.0);
   param_nh.param("diagnostics_tolerance", diagnostics_tolerance, 0.05);
   param_nh.param("diagnostics_window_time", diagnostics_window_time, 5.0);
 
@@ -172,10 +171,15 @@ void DriverNodelet::onInitImpl ()
     // the depth generator.
     boost::lock_guard<boost::mutex> lock(connect_mutex_);
 
-    //Instantiate the diagnostic updater
+    // Instantiate the diagnostic updater
     pub_freq_max_ = diagnostics_max_frequency;
     pub_freq_min_ = diagnostics_min_frequency;
     diagnostic_updater_.reset(new diagnostic_updater::Updater);
+
+    // Set hardware id
+    std::string hardware_id = std::string(device_->getProductName()) + "-" +
+        std::string(device_->getSerialNumber());
+    diagnostic_updater_->setHardwareID(hardware_id);
     
     // Asus Xtion PRO does not have an RGB camera
     if (device_->hasImageStream())
@@ -183,10 +187,10 @@ void DriverNodelet::onInitImpl ()
       image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
       ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::rgbConnectCb, this);
       pub_rgb_ = rgb_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
-      if (enable_rgb_diagnostics) {
+      if (enable_rgb_diagnostics_) {
         pub_rgb_freq_.reset(new TopicDiagnostic("RGB Image", *diagnostic_updater_,
             FrequencyStatusParam(&pub_freq_min_, &pub_freq_max_, 
-                diagnostics_tolerance, diagnostics_time_window)));
+                diagnostics_tolerance, diagnostics_window_time)));
       }
     }
 
@@ -195,10 +199,10 @@ void DriverNodelet::onInitImpl ()
       image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::irConnectCb, this);
       ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::irConnectCb, this);
       pub_ir_ = ir_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
-      if (enable_ir_diagnostics) {
+      if (enable_ir_diagnostics_) {
         pub_ir_freq_.reset(new TopicDiagnostic("IR Image", *diagnostic_updater_,
             FrequencyStatusParam(&pub_freq_min_, &pub_freq_max_, 
-                diagnostics_tolerance, diagnostics_time_window)));
+                diagnostics_tolerance, diagnostics_window_time)));
       }
     }
 
@@ -207,10 +211,10 @@ void DriverNodelet::onInitImpl ()
       image_transport::SubscriberStatusCallback itssc = boost::bind(&DriverNodelet::depthConnectCb, this);
       ros::SubscriberStatusCallback rssc = boost::bind(&DriverNodelet::depthConnectCb, this);
       pub_depth_ = depth_it.advertiseCamera("image_raw", 1, itssc, itssc, rssc, rssc);
-      if (enable_depth_diagnostics) {
+      if (enable_depth_diagnostics_) {
         pub_depth_freq_.reset(new TopicDiagnostic("Depth Image", *diagnostic_updater_,
             FrequencyStatusParam(&pub_freq_min_, &pub_freq_max_, 
-                diagnostics_tolerance, diagnostics_time_window)));
+                diagnostics_tolerance, diagnostics_window_time)));
       }
 
       pub_projector_info_ = projector_nh.advertise<sensor_msgs::CameraInfo>("camera_info", 1, rssc, rssc);
@@ -511,7 +515,8 @@ void DriverNodelet::publishRgbImage(const ImageBuffer& image, ros::Time time) co
   fillImage(image, reinterpret_cast<void*>(&rgb_msg->data[0]));
   
   pub_rgb_.publish(rgb_msg, getRgbCameraInfo(image, time));
-  pub_rgb_freq_->tick();
+  if (enable_rgb_diagnostics_)
+      pub_rgb_freq_->tick();
 }
 
 void DriverNodelet::publishDepthImage(const ImageBuffer& depth, ros::Time time) const
@@ -548,7 +553,8 @@ void DriverNodelet::publishDepthImage(const ImageBuffer& depth, ros::Time time) 
     depth_msg->header.frame_id = depth_frame_id_;
     pub_depth_.publish(depth_msg, getDepthCameraInfo(depth, time));
   }
-  pub_depth_freq_->tick();
+  if (enable_depth_diagnostics_)
+      pub_depth_freq_->tick();
 
   // Projector "info" probably only useful for working with disparity images
   if (pub_projector_info_.getNumSubscribers() > 0)
@@ -571,7 +577,9 @@ void DriverNodelet::publishIrImage(const ImageBuffer& ir, ros::Time time) const
   fillImage(ir, reinterpret_cast<void*>(&ir_msg->data[0]));
 
   pub_ir_.publish(ir_msg, getIrCameraInfo(ir, time));
-  pub_ir_freq_->tick();
+
+  if (enable_ir_diagnostics_) 
+      pub_ir_freq_->tick();
 }
 
 sensor_msgs::CameraInfoPtr DriverNodelet::getDefaultCameraInfo(int width, int height, double f) const
@@ -696,7 +704,7 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
     if (!device_->findCompatibleImageMode (image_mode, compatible_image_mode))
     {
       OutputMode default_mode = device_->getDefaultImageMode();
-      NODELET_WARN("Could not find any compatible image output mode for %d."
+      NODELET_WARN("Could not find any compatible image output mode for %d. "
                    "Falling back to default image output mode %d.",
                     image_mode,
                     default_mode);
@@ -712,7 +720,7 @@ void DriverNodelet::configCb(Config &config, uint32_t level)
   if (!device_->findCompatibleDepthMode (depth_mode, compatible_depth_mode))
   {
     OutputMode default_mode = device_->getDefaultDepthMode();
-    NODELET_WARN("Could not find any compatible depth output mode for %d."
+    NODELET_WARN("Could not find any compatible depth output mode for %d. "
                  "Falling back to default depth output mode %d.",
                   depth_mode,
                   default_mode);

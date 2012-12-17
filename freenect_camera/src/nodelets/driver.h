@@ -110,8 +110,11 @@ namespace freenect_camera
       boost::shared_ptr<diagnostic_updater::Updater> diagnostic_updater_;
       double pub_freq_max_, pub_freq_min_;
       TopicDiagnosticPtr pub_rgb_freq_;
+      bool enable_rgb_diagnostics_;
       TopicDiagnosticPtr pub_depth_freq_;
+      bool enable_depth_diagnostics_;
       TopicDiagnosticPtr pub_ir_freq_;
+      bool enable_ir_diagnostics_;
       boost::thread diagnostics_thread_;
       void updateDiagnostics();
       bool close_diagnostics_;
