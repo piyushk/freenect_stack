@@ -12,6 +12,18 @@
   <arg name="depth_camera_info_url" />
   <arg name="depth_registration" />
 
+  <!-- enable libfreenect debug logging -->
+  <arg name="libfreenect_debug" default="false" />
+
+  <!-- enable diagnostics support for freenect_camera -->
+  <arg name="enable_rgb_diagnostics" default="false" />
+  <arg name="enable_ir_diagnostics" default="false" />
+  <arg name="enable_depth_diagnostics" default="false" />
+  <arg name="diagnostics_max_frequency" default="30.0" />
+  <arg name="diagnostics_min_frequency" default="30.0" />
+  <arg name="diagnostics_tolerance" default="0.05" />
+  <arg name="diagnostics_window_time" default="5.0" />
+
   <arg name="respawn" default="false" />
   <arg     if="$(arg respawn)" name="bond" value="" />
   <arg unless="$(arg respawn)" name="bond" value="--no-bond" />
@@ -23,7 +35,7 @@
   <arg name="depth_registered" default="depth_registered" />
   <arg name="projector"        default="projector" />
 
-  <!-- Driver nodelet -->
+  <!-- Driver nodelet -->3
   <node pkg="nodelet" type="nodelet" name="driver" 
         args="load freenect_camera/driver $(arg manager) $(arg bond)"
 	respawn="$(arg respawn)">
@@ -33,6 +45,15 @@
     <param name="rgb_frame_id"   value="$(arg rgb_frame_id)" />
     <param name="depth_frame_id" value="$(arg depth_frame_id)" />
     <param name="depth_registration" value="$(arg depth_registration)" />
+
+    <param name="debug"                     value="$(arg libfreenect_debug)" />
+    <param name="enable_rgb_diagnostics"    value="$(arg enable_rgb_diagnostics)" />
+    <param name="enable_ir_diagnostics"     value="$(arg enable_ir_diagnostics)" />
+    <param name="enable_depth_diagnostics"  value="$(arg enable_depth_diagnostics)" />
+    <param name="diagnostics_max_frequency" value="$(arg diagnostics_max_frequency)" />
+    <param name="diagnostics_min_frequency" value="$(arg diagnostics_min_frequency)" />
+    <param name="diagnostics_tolerance"     value="$(arg diagnostics_tolerance)" />
+    <param name="diagnostics_window_time"   value="$(arg diagnostics_window_time)" />
 
     <remap from="ir" to="$(arg ir)" />
     <remap from="rgb" to="$(arg rgb)" />

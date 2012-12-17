@@ -51,9 +51,22 @@
   <!-- figure out the resolved nodelet manager namespace -->
   <arg name="resolved_manager" value="$(arg ns)/$(arg manager)" />
 
+  <!-- launch desired constellation of processing nodelets -->
   <arg name="processing_constellation_file"
-       default="$(find freenect_launch)/launch/includes/processing.launch">
+    default="$(find freenect_launch)/launch/includes/processing.launch" />
 
+  <!-- enable libfreenect debug logging -->
+  <arg name="libfreenect_debug" default="false" />
+
+  <!-- enable diagnostics support for freenect_camera -->
+  <arg name="enable_rgb_diagnostics" default="false" />
+  <arg name="enable_ir_diagnostics" default="false" />
+  <arg name="enable_depth_diagnostics" default="false" />
+  <arg name="diagnostics_max_frequency" default="30.0" />
+  <arg name="diagnostics_min_frequency" default="30.0" />
+  <arg name="diagnostics_tolerance" default="0.05" />
+  <arg name="diagnostics_window_time" default="5.0" />
+ 
   <!-- Push down all topics/nodelets into "camera" namespace -->
   <group ns="$(arg camera)">
 
@@ -74,6 +87,14 @@
       <arg name="depth_registered"      value="$(arg depth_registered)" />
       <arg name="projector"             value="$(arg projector)" />
       <arg name="respawn"               value="$(arg respawn)" />
+      <arg name="libfreenect_debug"         value="$(arg libfreenect_debug)" />
+      <arg name="enable_rgb_diagnostics"    value="$(arg enable_rgb_diagnostics)" />
+      <arg name="enable_ir_diagnostics"     value="$(arg enable_ir_diagnostics)" />
+      <arg name="enable_depth_diagnostics"  value="$(arg enable_depth_diagnostics)" />
+      <arg name="diagnostics_max_frequency" value="$(arg diagnostics_max_frequency)" />
+      <arg name="diagnostics_min_frequency" value="$(arg diagnostics_min_frequency)" />
+      <arg name="diagnostics_tolerance"     value="$(arg diagnostics_tolerance)" />
+      <arg name="diagnostics_window_time"   value="$(arg diagnostics_window_time)" />
     </include>
 
     <!-- Load standard constellation of processing nodelets -->
