@@ -3,7 +3,7 @@
 
     Contains a set of launch files for freenect_camera to produce rectified,
     registered and/or disparity images. Also used to produce point clouds and
-    registered point clouds. Based on the freenect_launch package.
+    registered point clouds. Based on the openni_launch package.
 
   </description>
   <author>Patrick Mihelich (original openni_launch package), Piyush Khandelwal (libfreenect port)</author>
