@@ -1,0 +1,7 @@
+<launch>
+  <group ns="robot1">
+    <include file="$(find freenect_launch)/launch/freenect.launch">
+      <arg name="ns" value="/robot1" />
+    </include>
+  </group>
+</launch>
