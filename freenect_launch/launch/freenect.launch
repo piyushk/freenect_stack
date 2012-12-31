@@ -3,10 +3,11 @@
 
   <!-- "camera" should uniquely identify the device. All topics are pushed down
        into the "camera" namespace, and it is prepended to tf frame ids. -->
-  <arg name="ns" default="" />
+  <arg name="ns" default="" /> <!-- if supplied, then should be fully resolved -->
+  <arg name="tf_prefix" default="$(arg ns)" />
   <arg name="camera" default="camera" />
-  <arg name="rgb_frame_id"   default="$(arg ns)/$(arg camera)_rgb_optical_frame" />
-  <arg name="depth_frame_id" default="$(arg ns)/$(arg camera)_depth_optical_frame" />
+  <arg name="rgb_frame_id"   default="$(arg tf_prefix)/$(arg camera)_rgb_optical_frame" />
+  <arg name="depth_frame_id" default="$(arg tf_prefix)/$(arg camera)_depth_optical_frame" />
 
   <!-- device_id can have the following formats:
          "B00367707227042B": Use device with given serial number
@@ -111,10 +112,10 @@
   </group> <!-- camera -->
 
   <!-- Load reasonable defaults for the relative pose between cameras -->
+  <param name="tf_prefix" value="$(arg tf_prefix)" /> <!-- for static transform publisher -->
   <include if="$(arg publish_tf)"
 	   file="$(find freenect_launch)/launch/kinect_frames.launch">
     <arg name="camera" value="$(arg camera)" />
-    <arg name="ns" value="$(arg ns)" />
   </include>
 
 </launch>

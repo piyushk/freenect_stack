@@ -2,6 +2,6 @@
   <include file="$(find freenect_launch)/launch/freenect.launch">
     <!-- supply appropriate processing constellation -->
     <arg name="processing_constellation_file"
-      value="$(find freenect_launch)/launch/examples/include/produce-xyz.launch" />
+      value="$(find freenect_launch)/launch/examples/includes/produce-xyz.launch" />
   </include>
 </launch>
